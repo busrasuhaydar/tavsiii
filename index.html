@@ -163,8 +163,8 @@
         const keys = {};
         
         let cameraYaw = 0;
-        const cameraDistance = 22.0;
-        const cameraHeight = 6.0;
+        const cameraDistance = isMobile ? 20.0 : 22.0;
+        const cameraHeight = isMobile ? 2.5 : 6.0;
         
         const rabbit = {
             position: { x: 0, y: 0, z: 5 },
@@ -1093,8 +1093,11 @@ void main() {
         }
 
         function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+            canvas.width = window.innerWidth * pixelRatio;
+            canvas.height = window.innerHeight * pixelRatio;
+            canvas.style.width = window.innerWidth + 'px';
+            canvas.style.height = window.innerHeight + 'px';
             gl.viewport(0, 0, canvas.width, canvas.height);
         }
         resize();
@@ -1463,7 +1466,7 @@ void main() {
             
             camera.lookAt(
                 rabbit.position.x,
-                rabbit.position.y + 1.5,
+                rabbit.position.y + (isMobile ? 3.5 : 1.5),
                 rabbit.position.z
             );
             
