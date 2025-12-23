@@ -10,91 +10,124 @@
             -webkit-touch-callout: none;
             -webkit-user-select: none;
             user-select: none;
-        }
-        body {
             margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
             overflow: hidden;
             font-family: monospace;
             position: fixed;
             width: 100%;
             height: 100%;
+            overscroll-behavior: none;
         }
         #canvas {
-            width: 100%;
+            width: 100vw;
             height: 100vh;
             display: block;
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 0;
+            touch-action: none;
         }
         #threeCanvas {
-            width: 100%;
+            width: 100vw;
             height: 100vh;
             display: block;
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 0;
             pointer-events: none;
+            touch-action: none;
         }
         .mobile-controls {
             display: none;
             position: fixed;
-            bottom: 30px;
+            bottom: 0;
+            left: 0;
+            right: 0;
             width: 100%;
-            height: 120px;
+            height: 150px;
             pointer-events: none;
             z-index: 1000;
         }
         .control-btn {
             position: absolute;
-            width: 60px;
-            height: 60px;
-            background: rgba(255, 255, 255, 0.15);
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 3px solid rgba(255, 255, 255, 0.4);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
-            color: rgba(255, 255, 255, 0.8);
+            font-size: 30px;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.9);
             pointer-events: auto;
             touch-action: manipulation;
-            backdrop-filter: blur(5px);
-            transition: all 0.1s;
+            backdrop-filter: blur(8px);
+            transition: all 0.15s;
+            user-select: none;
         }
         .control-btn:active {
-            background: rgba(255, 255, 255, 0.3);
-            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(0.9);
+            border-color: rgba(255, 255, 255, 0.6);
         }
         .left-controls {
             position: absolute;
-            left: 20px;
-            bottom: 0;
+            left: 30px;
+            bottom: 20px;
+            width: 150px;
+            height: 150px;
         }
         .right-controls {
             position: absolute;
-            right: 20px;
-            bottom: 0;
+            right: 30px;
+            bottom: 20px;
+            width: 150px;
+            height: 150px;
         }
         #btn-forward {
-            left: 35px;
+            left: 50%;
             top: 0;
+            transform: translateX(-50%);
         }
         #btn-backward {
-            left: 35px;
+            left: 50%;
             bottom: 0;
+            transform: translateX(-50%);
         }
         #btn-left {
             left: 0;
-            top: 30px;
+            top: 50%;
+            transform: translateY(-50%);
         }
         #btn-right {
             right: 0;
-            top: 30px;
+            top: 50%;
+            transform: translateY(-50%);
         }
         @media (max-width: 768px) {
             .mobile-controls {
                 display: block;
+            }
+        }
+        @media (orientation: landscape) and (max-width: 920px) {
+            .mobile-controls {
+                display: block;
+            }
+            .left-controls {
+                left: 20px;
+                bottom: 10px;
+            }
+            .right-controls {
+                right: 20px;
+                bottom: 10px;
             }
         }
     </style>
@@ -150,17 +183,23 @@
             const btnLeft = document.getElementById('btn-left');
             const btnRight = document.getElementById('btn-right');
             
-            btnForward.addEventListener('touchstart', (e) => { e.preventDefault(); keys['w'] = true; });
-            btnForward.addEventListener('touchend', (e) => { e.preventDefault(); keys['w'] = false; });
+            btnForward.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); keys['w'] = true; });
+            btnForward.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); keys['w'] = false; });
+            btnForward.addEventListener('touchcancel', (e) => { e.preventDefault(); keys['w'] = false; });
             
-            btnBackward.addEventListener('touchstart', (e) => { e.preventDefault(); keys['s'] = true; });
-            btnBackward.addEventListener('touchend', (e) => { e.preventDefault(); keys['s'] = false; });
+            btnBackward.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); keys['s'] = true; });
+            btnBackward.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); keys['s'] = false; });
+            btnBackward.addEventListener('touchcancel', (e) => { e.preventDefault(); keys['s'] = false; });
             
-            btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); keys['a'] = true; });
-            btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); keys['a'] = false; });
+            btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); keys['a'] = true; });
+            btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); keys['a'] = false; });
+            btnLeft.addEventListener('touchcancel', (e) => { e.preventDefault(); keys['a'] = false; });
             
-            btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); keys['d'] = true; });
-            btnRight.addEventListener('touchend', (e) => { e.preventDefault(); keys['d'] = false; });
+            btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); keys['d'] = true; });
+            btnRight.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); keys['d'] = false; });
+            btnRight.addEventListener('touchcancel', (e) => { e.preventDefault(); keys['d'] = false; });
+            
+            document.body.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
         }
         
         let mouseDown = false;
