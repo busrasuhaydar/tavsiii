@@ -178,28 +178,82 @@
         let cinematicTime = 0;
         
         if (isMobile) {
-            const btnForward = document.getElementById('btn-forward');
-            const btnBackward = document.getElementById('btn-backward');
-            const btnLeft = document.getElementById('btn-left');
-            const btnRight = document.getElementById('btn-right');
+            console.log('📱 MOBILE DETECTED!');
             
-            btnForward.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); keys['w'] = true; });
-            btnForward.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); keys['w'] = false; });
-            btnForward.addEventListener('touchcancel', (e) => { e.preventDefault(); keys['w'] = false; });
+            setTimeout(() => {
+                const btnForward = document.getElementById('btn-forward');
+                const btnBackward = document.getElementById('btn-backward');
+                const btnLeft = document.getElementById('btn-left');
+                const btnRight = document.getElementById('btn-right');
+                
+                console.log('Buttons:', btnForward, btnBackward, btnLeft, btnRight);
+                
+                if (btnForward) {
+                    btnForward.addEventListener('touchstart', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['w'] = true; 
+                        console.log('▲ FORWARD PRESSED');
+                    }, { passive: false });
+                    btnForward.addEventListener('touchend', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['w'] = false; 
+                        console.log('▲ FORWARD RELEASED');
+                    }, { passive: false });
+                    btnForward.addEventListener('touchcancel', (e) => { keys['w'] = false; });
+                }
+                
+                if (btnBackward) {
+                    btnBackward.addEventListener('touchstart', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['s'] = true; 
+                        console.log('▼ BACKWARD PRESSED');
+                    }, { passive: false });
+                    btnBackward.addEventListener('touchend', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['s'] = false; 
+                        console.log('▼ BACKWARD RELEASED');
+                    }, { passive: false });
+                    btnBackward.addEventListener('touchcancel', (e) => { keys['s'] = false; });
+                }
+                
+                if (btnLeft) {
+                    btnLeft.addEventListener('touchstart', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['a'] = true; 
+                        console.log('◀ LEFT PRESSED');
+                    }, { passive: false });
+                    btnLeft.addEventListener('touchend', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['a'] = false; 
+                        console.log('◀ LEFT RELEASED');
+                    }, { passive: false });
+                    btnLeft.addEventListener('touchcancel', (e) => { keys['a'] = false; });
+                }
+                
+                if (btnRight) {
+                    btnRight.addEventListener('touchstart', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['d'] = true; 
+                        console.log('▶ RIGHT PRESSED');
+                    }, { passive: false });
+                    btnRight.addEventListener('touchend', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['d'] = false; 
+                        console.log('▶ RIGHT RELEASED');
+                    }, { passive: false });
+                    btnRight.addEventListener('touchcancel', (e) => { keys['d'] = false; });
+                }
+            }, 100);
             
-            btnBackward.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); keys['s'] = true; });
-            btnBackward.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); keys['s'] = false; });
-            btnBackward.addEventListener('touchcancel', (e) => { e.preventDefault(); keys['s'] = false; });
-            
-            btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); keys['a'] = true; });
-            btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); keys['a'] = false; });
-            btnLeft.addEventListener('touchcancel', (e) => { e.preventDefault(); keys['a'] = false; });
-            
-            btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); keys['d'] = true; });
-            btnRight.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); keys['d'] = false; });
-            btnRight.addEventListener('touchcancel', (e) => { e.preventDefault(); keys['d'] = false; });
-            
-            document.body.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
+            document.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
         }
         
         let mouseDown = false;
@@ -1320,21 +1374,21 @@ void main() {
                 if (!rabbit.stepTime) rabbit.stepTime = 0;
                 if (!rabbit.stepPhase) rabbit.stepPhase = 0;
                 
-                if (keys['ArrowUp']) {
+                if (keys['ArrowUp'] || keys['w'] || keys['W']) {
                     forward = 1;
                     isMoving = true;
                 }
-                if (keys['ArrowDown']) {
+                if (keys['ArrowDown'] || keys['s'] || keys['S']) {
                     forward = -1;
                     isMoving = true;
                 }
                 
                 if (!rabbit.stepTime) rabbit.stepTime = 0;
                 
-                if (keys['ArrowLeft']) {
+                if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
                     turnInput = 1.0;
                 }
-                if (keys['ArrowRight']) {
+                if (keys['ArrowRight'] || keys['d'] || keys['D']) {
                     turnInput = -1.0;
                 }
                 
