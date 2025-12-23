@@ -163,13 +163,13 @@
         const keys = {};
         
         let cameraYaw = 0;
-        const cameraDistance = isMobile ? 20.0 : 22.0;
-        const cameraHeight = isMobile ? 2.5 : 6.0;
+        const cameraDistance = 20.0;
+        const cameraHeight = 2.5;
         
         const rabbit = {
             position: { x: 0, y: 0, z: 5 },
             rotation: 0,
-            moveSpeed: 8.0,
+            moveSpeed: 14.0,
             verticalSpeed: 0
         };
         let isMoving = false;
@@ -1127,6 +1127,8 @@ void main() {
         dirLight.castShadow = true;
         dirLight.shadow.mapSize.width = 2048;
         dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 50;
         scene.add(dirLight);
 
         const backLight = new THREE.DirectionalLight(0xffaa66, 0.8);
@@ -1172,9 +1174,31 @@ void main() {
                 
                 scene.add(rabbitModel);
                 
+                let earLeftBone = null;
+                let earRightBone = null;
+                
+                rabbitModel.traverse((child) => {
+                    if (child.isBone || child.name) {
+                        if (child.name && (child.name.toLowerCase().includes('ear') || child.name.toLowerCase().includes('kulak'))) {
+                            if (child.name.toLowerCase().includes('left') || child.name.toLowerCase().includes('sol')) {
+                                earLeftBone = child;
+                                console.log('Found left ear:', child.name);
+                            } else if (child.name.toLowerCase().includes('right') || child.name.toLowerCase().includes('sağ')) {
+                                earRightBone = child;
+                                console.log('Found right ear:', child.name);
+                            }
+                        }
+                    }
+                });
+                
+                rabbit.earLeftBone = earLeftBone;
+                rabbit.earRightBone = earRightBone;
+                rabbit.earTime = 0;
+                
                 if (gltf.animations && gltf.animations.length > 0) {
                     rabbitMixer = new THREE.AnimationMixer(rabbitModel);
                     const action = rabbitMixer.clipAction(gltf.animations[0]);
+                    action.setDuration(gltf.animations[0].duration * 0.4);
                     action.play();
                 }
                 
@@ -1220,7 +1244,7 @@ void main() {
             let turnInput = 0;
             
             if (cinematicMode) {
-                cinematicTime += deltaTime * 0.5;
+                cinematicTime += deltaTime * 0.65;
                 
                 const totalCycle = 300.0;
                 const t = cinematicTime % totalCycle;
@@ -1400,11 +1424,11 @@ void main() {
                 else rabbit.verticalSpeed = 0;
                 rabbit.position.y += rabbit.verticalSpeed * deltaTime;
                 
-                const turnSpeed = 2.0;
+                const turnSpeed = 2.5;
                 rabbit.rotation += turnInput * turnSpeed * deltaTime;
                 
                 if (forward !== 0) {
-                    rabbit.stepTime += deltaTime * 10.0;
+                    rabbit.stepTime += deltaTime * 25.0;
                     
                     const step1 = Math.sin(rabbit.stepTime);
                     const step2 = Math.sin(rabbit.stepTime + Math.PI * 0.5);
@@ -1433,9 +1457,26 @@ void main() {
                 rabbitModel.position.set(rabbit.position.x, rabbit.position.y, rabbit.position.z);
                 rabbitModel.rotation.y = rabbit.rotation;
                 
+                if (rabbit.earLeftBone || rabbit.earRightBone) {
+                    const earSpeed = isMoving ? 12.0 : 6.0;
+                    rabbit.earTime += deltaTime * earSpeed;
+                    
+                    const earUpDown = Math.sin(rabbit.earTime) * 0.4;
+                    const earUpDown2 = Math.sin(rabbit.earTime * 1.2 + 0.3) * 0.35;
+                    
+                    if (rabbit.earLeftBone) {
+                        rabbit.earLeftBone.rotation.x = earUpDown;
+                        rabbit.earLeftBone.rotation.z = Math.sin(rabbit.earTime * 0.8) * 0.15;
+                    }
+                    if (rabbit.earRightBone) {
+                        rabbit.earRightBone.rotation.x = earUpDown2;
+                        rabbit.earRightBone.rotation.z = -Math.sin(rabbit.earTime * 0.8) * 0.15;
+                    }
+                }
+                
                 if (rabbitMixer) {
                     if (isMoving) {
-                        rabbitMixer.timeScale = 1.0;
+                        rabbitMixer.timeScale = 3.5;
                         rabbitMixer.update(deltaTime);
                     } else {
                         rabbitMixer.timeScale = 0;
@@ -1466,7 +1507,7 @@ void main() {
             
             camera.lookAt(
                 rabbit.position.x,
-                rabbit.position.y + (isMobile ? 3.5 : 1.5),
+                rabbit.position.y + 3.5,
                 rabbit.position.z
             );
             
