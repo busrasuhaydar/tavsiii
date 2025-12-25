@@ -1,0 +1,1709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chess Scene - Rabbit Adventure</title>
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: monospace;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overscroll-behavior: none;
+        }
+        #canvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            touch-action: none;
+        }
+        #threeCanvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            touch-action: none;
+        }
+        .mobile-controls {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            height: 150px;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        .control-btn {
+            position: absolute;
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.9);
+            pointer-events: auto;
+            touch-action: manipulation;
+            backdrop-filter: blur(8px);
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .control-btn:active {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(0.9);
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+        .left-controls {
+            position: absolute;
+            left: 30px;
+            bottom: 20px;
+            width: 150px;
+            height: 150px;
+        }
+        .right-controls {
+            position: absolute;
+            right: 30px;
+            bottom: 20px;
+            width: 150px;
+            height: 150px;
+        }
+        #btn-forward {
+            left: 50%;
+            top: 0;
+            transform: translateX(-50%);
+        }
+        #btn-backward {
+            left: 50%;
+            bottom: 0;
+            transform: translateX(-50%);
+        }
+        #btn-left {
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        #btn-right {
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        @media (max-width: 768px) {
+            .mobile-controls {
+                display: block;
+            }
+        }
+        @media (orientation: landscape) and (max-width: 920px) {
+            .mobile-controls {
+                display: block;
+            }
+            .left-controls {
+                left: 20px;
+                bottom: 10px;
+            }
+            .right-controls {
+                right: 20px;
+                bottom: 10px;
+            }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <canvas id="threeCanvas"></canvas>
+    
+    <div class="mobile-controls">
+        <div class="left-controls">
+            <div class="control-btn" id="btn-forward">↑</div>
+            <div class="control-btn" id="btn-backward">↓</div>
+        </div>
+        <div class="right-controls">
+            <div class="control-btn" id="btn-left">←</div>
+            <div class="control-btn" id="btn-right">→</div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+        
+        if (!gl) {
+            alert('WebGL not supported');
+        }
+        
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+
+        const startTime = Date.now();
+        const keys = {};
+        
+        let cameraYaw = 0;
+        const cameraDistance = 20.0;
+        const cameraHeight = 2.5;
+        
+        const rabbit = {
+            position: { x: 0, y: 0, z: 5 },
+            rotation: 0,
+            moveSpeed: 14.0,
+            verticalSpeed: 0,
+            // ZIPLAMA SİSTEMİ! 🐰
+            isJumping: false,
+            jumpTime: 0,
+            nextJumpIn: 120, // 2 dakika = 120 saniye
+            jumpCooldown: 0
+        };
+        let isMoving = false;
+        
+        let cinematicMode = isMobile ? false : false;
+        let cinematicTime = 0;
+        
+        if (isMobile) {
+            console.log('📱 MOBILE DETECTED!');
+            
+            setTimeout(() => {
+                const btnForward = document.getElementById('btn-forward');
+                const btnBackward = document.getElementById('btn-backward');
+                const btnLeft = document.getElementById('btn-left');
+                const btnRight = document.getElementById('btn-right');
+                
+                console.log('Buttons:', btnForward, btnBackward, btnLeft, btnRight);
+                
+                if (btnForward) {
+                    btnForward.addEventListener('touchstart', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['w'] = true; 
+                        console.log('▲ FORWARD PRESSED');
+                    }, { passive: false });
+                    btnForward.addEventListener('touchend', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['w'] = false; 
+                        console.log('▲ FORWARD RELEASED');
+                    }, { passive: false });
+                    btnForward.addEventListener('touchcancel', (e) => { keys['w'] = false; });
+                }
+                
+                if (btnBackward) {
+                    btnBackward.addEventListener('touchstart', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['s'] = true; 
+                        console.log('▼ BACKWARD PRESSED');
+                    }, { passive: false });
+                    btnBackward.addEventListener('touchend', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['s'] = false; 
+                        console.log('▼ BACKWARD RELEASED');
+                    }, { passive: false });
+                    btnBackward.addEventListener('touchcancel', (e) => { keys['s'] = false; });
+                }
+                
+                if (btnLeft) {
+                    btnLeft.addEventListener('touchstart', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['a'] = true; 
+                        console.log('◀ LEFT PRESSED');
+                    }, { passive: false });
+                    btnLeft.addEventListener('touchend', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['a'] = false; 
+                        console.log('◀ LEFT RELEASED');
+                    }, { passive: false });
+                    btnLeft.addEventListener('touchcancel', (e) => { keys['a'] = false; });
+                }
+                
+                if (btnRight) {
+                    btnRight.addEventListener('touchstart', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['d'] = true; 
+                        console.log('▶ RIGHT PRESSED');
+                    }, { passive: false });
+                    btnRight.addEventListener('touchend', (e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        keys['d'] = false; 
+                        console.log('▶ RIGHT RELEASED');
+                    }, { passive: false });
+                    btnRight.addEventListener('touchcancel', (e) => { keys['d'] = false; });
+                }
+            }, 100);
+            
+            document.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
+        }
+        
+        let mouseDown = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let manualCameraAngle = 0;
+        let manualCameraPitch = 0;
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            
+            if (e.key === ' ' && !isMobile) {
+                cinematicMode = !cinematicMode;
+                if (cinematicMode) {
+                    cinematicTime = 0;
+                    console.log('🎬 SİNEMATİK MOD AÇIK!');
+                } else {
+                    console.log('🎮 MANUEL MOD AÇIK!');
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        window.addEventListener('mousedown', (e) => {
+            if (!isMobile) {
+                mouseDown = true;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                console.log('🖱️ MOUSE DOWN - Kamera kontrolü aktif!');
+            }
+        });
+        
+        window.addEventListener('mouseup', () => {
+            if (!isMobile) {
+                mouseDown = false;
+                console.log('🖱️ MOUSE UP');
+            }
+        });
+        
+        window.addEventListener('mousemove', (e) => {
+            if (mouseDown && !isMobile) {
+                const deltaX = e.clientX - lastMouseX;
+                const deltaY = e.clientY - lastMouseY;
+                
+                manualCameraAngle -= deltaX * 0.005; // Daha hassas kontrol!
+                manualCameraPitch += deltaY * 0.005;
+                manualCameraPitch = Math.max(-1.5, Math.min(1.5, manualCameraPitch));
+                
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        });
+
+        const vertexShaderSource = `
+attribute vec2 position;
+void main() {
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+        const fragmentShaderSource = `
+precision highp float;
+uniform vec2 iResolution;
+uniform float iTime;
+uniform bool isDayTime;
+uniform vec3 uRabbitPos;
+uniform float uRabbitRot;
+uniform vec3 uCameraPos;
+uniform vec3 uCameraTarget;
+
+float rnd(vec2 p) {
+    return fract(sin(dot(p, vec2(13.234, 72.1849))) * 43251.1234);    
+}
+
+float roundBox(vec3 p, vec3 b, float r) {
+    return length(max(abs(p) - b, 0.0)) - r;   
+}
+
+mat2 rot(float a) {
+     float c = cos(a), s = sin(a);
+     return mat2(c, -s, s, c);
+}
+
+float tri(float x) {
+    return abs(fract(x) - 0.5);
+}
+
+vec3 tri3(vec3 p) {
+   return abs(fract(p.zzy + abs(fract(p.yxx) - 0.5)) - 0.5);   
+}
+                                 
+float triNoise3D(vec3 p, float spd) {
+    float z = 1.4;
+    float rz = 0.0;
+    vec3 bp = p;
+    for (float i = 0.0; i <= 3.0; i += 1.0) {
+        vec3 dg = tri3(bp * 2.0);
+        p += (dg + iTime * 0.3 * spd);
+        bp *= 1.8;
+        z *= 1.5;
+        p *= 1.2;    
+        rz += tri(p.z + tri(p.x + tri(p.y))) / z;
+        bp += 0.14;
+    }
+    return rz;
+}
+
+float sphere2(vec2 p, float r) {
+    return length(p) - r;
+}
+
+float ellipse2(vec2 p, vec2 r) {
+    float k0 = length(p / r);
+    float k1 = length(p / (r * r));
+    return k0 * (k0 - 1.0) / k1;
+}
+
+float blend(float d1, float d2, float k) {
+    float h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
+    return mix(d2, d1, h) - k * h * (1.0 - h);
+}
+
+float roundCone(vec3 p, float r1, float r2, float h) {
+    vec2 q = vec2(length(p.xz), p.y);
+    float b = (r1 - r2) / h;
+    float a = sqrt(1.0 - b * b);
+    float k = dot(q, vec2(-b, a));
+    if(k < 0.0) return length(q) - r1;
+    if(k > a * h) return length(q - vec2(0.0, h)) - r2;
+    return dot(q, vec2(a, b)) - r1;
+}
+
+float dSphere(vec3 p, float r) { return length(p) - r; }
+float dTorus2(vec3 p, vec2 t) { vec2 q = vec2(length(p.xz) - t.x, p.y); return length(q) - t.y; }
+float yCylinder(vec3 p, vec2 h) { return max(length(p.xz)-h.x, abs(p.y)-h.y); }
+float capsuleY(vec3 p, float r, float h) { p.y -= clamp(p.y, 0.0, h); return length(p) - r; }
+float smin(float a, float b, float k) { float h = clamp(0.5+0.5*(b-a)/k, 0.0, 1.0); return mix(b, a, h) - k*h*(1.0-h); }
+
+// Temel primitive'ler - farklı isimlerle
+float sphereDist(vec3 pos, float radius) { 
+    return length(pos) - radius; 
+}
+
+float torusShape(vec3 pos, vec2 params) { 
+    vec2 q = vec2(length(pos.xz) - params.x, pos.y); 
+    return length(q) - params.y; 
+}
+
+float vertCylinder(vec3 pos, vec2 dim) { 
+    return max(length(pos.xz) - dim.x, abs(pos.y) - dim.y); 
+}
+
+float capY(vec3 pos, float rad, float height) { 
+    pos.y -= clamp(pos.y, 0.0, height); 
+    return length(pos) - rad; 
+}
+
+float smoothMin(float a, float b, float blend) { 
+    float h = clamp(0.5 + 0.5 * (b - a) / blend, 0.0, 1.0); 
+    return mix(b, a, h) - blend * h * (1.0 - h); 
+}
+
+// At tabanı
+float horseBase(vec3 coord, float scale) {
+    float result = 1.0;
+    float blendFactor = scale * 0.3;
+    float q1 = scale * 0.25, q2 = scale * 0.4, q3 = scale * 0.5;
+    
+    result = min(result, sphereDist(coord, scale));
+    result = max(result, abs(coord.y) - 0.1);
+    result = smoothMin(result, torusShape(coord + vec3(0., -q1, 0.), vec2(q3, q1)), blendFactor);
+    result = smoothMin(result, vertCylinder(coord + vec3(0., -(scale + q1), 0.), vec2(q2, scale)), blendFactor);
+    
+    return result;
+}
+
+// At modeli - yeniden yapılandırılmış
+float horseModel(vec3 position) {
+    // Koordinat ayarları
+    position = position * 0.7; 
+    position.y += 2.5;
+    
+    // Rotasyon matrisi
+    float cosVal = cos(4.7), sinVal = sin(4.7);
+    position.xz = vec2(cosVal * position.x - sinVal * position.z, sinVal * position.x + cosVal * position.z);
+    
+    // Ölçek değişkenleri - farklı isimlendirme
+    float baseScale = 1.0;
+    float blendK = baseScale * 0.3;
+    float s1 = baseScale * 0.10, s2 = baseScale * 0.25, s3 = baseScale * 0.4;
+    float s4 = baseScale * 0.5, s5 = baseScale * 0.6, s6 = baseScale * 0.7, s7 = baseScale * 0.8;
+    
+    float finalDist = horseBase(position, baseScale);
+    finalDist = smoothMin(finalDist, sphereDist(position + vec3(0., -(baseScale + s1), -s2), s4), blendK);
+    
+    // Baş kısmı
+    vec3 headPos = position;
+    float headDist = sphereDist(headPos + vec3(0., -(baseScale * 2.0 + s6), 0.), s5);
+    headPos += vec3(0., -(baseScale * 2.0 + s5), 0.);
+    
+    float angle = 1.85;
+    float cosA = cos(angle), sinA = sin(angle);
+    headPos.zy = vec2(cosA * headPos.z - sinA * headPos.y, sinA * headPos.z + cosA * headPos.y);
+    headDist = smoothMin(headDist, capY(headPos + vec3(0., -(s1 * 3.0), s1), s3, baseScale), s6);
+    finalDist = smoothMin(finalDist, headDist, blendK);
+    
+    // Kulaklar - simetrik
+    vec3 earPos = position; 
+    earPos.x = abs(earPos.x);
+    float earShape = torusShape(earPos + vec3(-s3, -(baseScale * 3.0 + s2), 0.), vec2(-s5, s7));
+    earShape = max(earShape, -torusShape(earPos + vec3(-s5, -(baseScale * 3.0 + s2), 0.), vec2(-s5, s7)));
+    finalDist = min(finalDist, earShape);
+    
+    // Yele - orijinal stil
+    vec3 manePos = position + vec3(0., -(baseScale * 2.0 + s2), s3);
+    vec3 maneOffset = manePos + vec3(0.0, cos(manePos.y * s7) * (-s4), sin(manePos.y * (baseScale * 2.0 + s7) + s4) * blendK);
+    float maneWidth = s1 * pow(sin(maneOffset.y * (baseScale * 30.0)), 2.0) + s1;
+    finalDist = smoothMin(finalDist, vertCylinder(maneOffset, vec2(maneWidth, baseScale)), s2);
+    
+    maneWidth = s1 * pow(sin(manePos.y * (baseScale * 30.0)), 2.0) + s1;
+    finalDist = smoothMin(finalDist, vertCylinder(manePos + vec3(0., s7, s1), vec2(maneWidth, s7)), s2);
+    
+    return finalDist;
+}
+
+float pawn(vec3 pos) {
+    float radialDist = length(pos.xz);
+    vec2 crossSection = vec2(radialDist, pos.y);
+    
+    vec2 topOffset = crossSection - vec2(0.0, 1.1);
+    float topBall = length(topOffset) - 0.98;
+    
+    vec2 neckCenter = vec2(0.0, -0.12);
+    vec2 neckRadii = vec2(0.97, 0.31);
+    float neckRing = ellipse2(crossSection - neckCenter, neckRadii);
+    
+    float waistUpper = ellipse2(crossSection - vec2(0.0, 0.05), vec2(0.48, 0.82));
+    float waistLower = ellipse2(crossSection - vec2(0.0, -2.25), vec2(0.87, 0.31));
+    float waistMiddle = ellipse2(crossSection - vec2(0.0, -2.05), vec2(1.37, 0.31));
+    
+    float baseLower = ellipse2(crossSection - vec2(0.0, -2.25), vec2(1.17, 0.61));
+    float baseMiddle = ellipse2(crossSection - vec2(0.0, -3.25), vec2(1.97, 0.61));
+    float baseBottom = ellipse2(crossSection - vec2(0.0, -3.75), vec2(2.07, 0.51));
+    
+    float headSection = blend(topBall, neckRing, 0.3);
+    float waistBlend = blend(waistUpper, waistLower, 3.0);
+    float baseBlend = blend(baseLower, baseMiddle, 1.2);
+    float completeBase = blend(baseBlend, baseBottom, 0.3);
+    
+    float result = min(headSection, waistBlend);
+    result = min(result, waistMiddle);
+    result = min(result, completeBase);
+    
+    return result;
+}
+
+float base1(vec3 pos) {
+    vec2 profile = vec2(length(pos.xz), pos.y);
+    
+    float neckPart = ellipse2(profile - vec2(0.0, -0.98), vec2(1.28, 1.02));
+    
+    float ring1 = ellipse2(profile - vec2(0.0, -2.28), vec2(1.57, 0.61));
+    float ring2 = ellipse2(profile - vec2(0.0, -3.28), vec2(2.47, 0.61));
+    float ring3 = ellipse2(profile - vec2(0.0, -3.78), vec2(2.57, 0.51));
+    
+    float band = ellipse2(profile - vec2(0.0, -2.08), vec2(1.77, 0.31));
+    
+    float merged = blend(ring1, ring2, 1.0);
+    merged = blend(merged, ring3, 0.3);
+    merged = min(merged, band);
+    
+    return merged;
+}
+
+float base2(vec3 pos) {
+    float pedestal = base1(pos);
+    vec2 sideView = vec2(length(pos.xz), pos.y);
+    
+    float mainColumn = ellipse2(sideView - vec2(0.0, -1.38), vec2(1.13, 2.72));
+    
+    float crown1 = ellipse2(sideView - vec2(0.0, 2.02), vec2(1.58, 0.31));
+    float crown2 = ellipse2(sideView - vec2(0.0, 2.22), vec2(1.48, 0.21));
+    float crown3 = ellipse2(sideView - vec2(0.0, 2.82), vec2(1.18, 0.21));
+    
+    float topSphere = ellipse2(sideView - vec2(0.0, 5.92), vec2(1.88, 2.82));
+    
+    float cutVolume = roundBox(pos - vec3(0.0, 7.22, 0.0), vec3(2.98, 2.52, 2.98), 0.0);
+    
+    pedestal = blend(pedestal, mainColumn, 1.8);
+    pedestal = blend(pedestal, crown1, 1.8);
+    pedestal = min(pedestal, crown2);
+    pedestal = blend(pedestal, crown3, 0.55);
+    pedestal = blend(pedestal, topSphere, 1.1);
+    
+    return max(pedestal, -cutVolume);
+}
+
+float rook(vec3 position) {
+    float foundation = base1(position);
+    vec2 silhouette = vec2(length(position.xz), position.y);
+    
+    vec2 neckPos = silhouette - vec2(0.0, -0.98);
+    float towerNeck = ellipse2(neckPos, vec2(1.18, 1.32));
+    
+    vec2 rimPos = silhouette - vec2(0.0, 0.52);
+    float crownRim = ellipse2(rimPos, vec2(1.68, 0.21));
+    
+    float tower = blend(foundation, towerNeck, 1.0);
+    tower = blend(tower, crownRim, 1.4);
+    
+    vec3 merlonOffset = vec3(silhouette.x, position.y, 0.0) - vec3(1.38, 1.12, 0.0);
+    float singleMerlon = roundBox(merlonOffset, vec3(0.21, 0.61, 1.98), 0.0);
+    tower = min(tower, singleMerlon);
+    
+    vec3 rotatedPos = position;
+    float rotationAngle = 2.094395;
+    float cosA = cos(rotationAngle);
+    float sinA = sin(rotationAngle);
+    mat2 rotationMatrix = mat2(cosA, -sinA, sinA, cosA);
+    
+    for (int slot = 0; slot < 3; slot++) {
+        vec3 gapBox = rotatedPos - vec3(0.0, 1.42, 0.0);
+        float gap = roundBox(gapBox, vec3(1.98, 0.61, 0.21), 0.0);
+        tower = max(tower, -gap);
+        rotatedPos.xz = rotationMatrix * rotatedPos.xz;
+    }
+    
+    return tower;
+}
+
+float knight(vec3 coord) {
+    float platform = base1(coord);
+    
+    coord.x = abs(coord.x);
+    
+    vec3 bodyCenter = coord - vec3(0.0, 2.02, 0.0);
+    float outerBound = length(bodyCenter) - 3.97;
+    
+    vec3 scaledBody = bodyCenter / vec3(1.98, 5.02, 1.78);
+    float innerBound = (length(scaledBody) - 1.0) * 1.78;
+    
+    vec3 neckBase = coord - vec3(-0.28, 1.02, 0.52);
+    float neckTrunk = roundCone(neckBase, 0.78, 2.22, 2.18);
+    
+    vec3 cutScale = (coord - vec3(2.18, 0.0, 0.0)) / vec3(1.48, 2.52, 4.98);
+    float sideCut = (length(cutScale) - 1.0) * 1.48;
+    
+    float tiltAngle = 1.32;
+    float cosT = cos(tiltAngle);
+    float sinT = sin(tiltAngle);
+    mat3 tiltMatrix = mat3(1.0, 0.0, 0.0, 0.0, cosT, -sinT, 0.0, sinT, cosT);
+    
+    vec3 headBase = coord - vec3(0.0, 2.52, 0.52);
+    float headCone = roundCone(tiltMatrix * headBase, 1.18, 0.58, 1.4);
+    
+    for(int i = 0; i < 8; i++) {
+        float offset = float(i) * 0.15;
+        vec3 manePos = coord - vec3(0.0, 2.5 - offset, -0.3);
+        float maneGroove = length(manePos.xz) - 0.05;
+        headCone = max(headCone, -maneGroove);
+    }
+    
+    float planeCut = 0.52 - coord.x;
+    vec3 rearCutCenter = coord - vec3(2.08, 2.82, -1.88);
+    float rearCut = length(rearCutCenter) - 1.98;
+    
+    vec3 shoulderScale = (coord - vec3(0.0, 2.22, 0.0)) / vec3(1.98, 1.28, 2.28);
+    float shoulderMass = (length(shoulderScale) - 1.0) * 1.28;
+    
+    float neckAssembly = max(neckTrunk, -sideCut);
+    
+    float headAssembly = headCone;
+    headAssembly = max(headAssembly, -planeCut);
+    headAssembly = max(headAssembly, -rearCut);
+    headAssembly = max(headAssembly, shoulderMass);
+    
+    neckAssembly = blend(neckAssembly, headAssembly, 0.72);
+    
+    float horseBody = min(platform, max(max(neckAssembly, outerBound), innerBound));
+    
+    return horseBody;
+}
+
+float bishop(vec3 loc) {
+    float stand = base1(loc);
+    vec2 outline = vec2(length(loc.xz), loc.y);
+    
+    vec2 stemCenter = outline - vec2(0.0, -1.38);
+    float bodyStem = ellipse2(stemCenter, vec2(0.98, 1.62));
+    
+    float capRing1 = ellipse2(outline - vec2(0.0, 0.72), vec2(1.58, 0.31));
+    float capRing2 = ellipse2(outline - vec2(0.0, 0.92), vec2(1.48, 0.21));
+    float capRing3 = ellipse2(outline - vec2(0.0, 1.52), vec2(1.18, 0.21));
+    
+    vec2 mitreCenter = outline - vec2(0.0, 2.62);
+    float mitre = ellipse2(mitreCenter, vec2(1.28, 1.52));
+    
+    vec2 tipCenter = outline - vec2(0.0, 4.22);
+    float tip = ellipse2(tipCenter, vec2(0.38, 0.38));
+    
+    float slitAngle = -0.42;
+    float cosS = cos(slitAngle);
+    float sinS = sin(slitAngle);
+    mat2 slitRotation = mat2(cosS, -sinS, sinS, cosS);
+    
+    vec3 slitPos = loc - vec3(0.78, 3.72, 0.0);
+    vec2 rotatedSlit = slitRotation * slitPos.xy;
+    vec3 slitBox = vec3(rotatedSlit, slitPos.z);
+    float slit = roundBox(slitBox, vec3(0.21, 0.98, 1.98), 0.0);
+    
+    float bishopShape = blend(stand, bodyStem, 0.92);
+    bishopShape = blend(bishopShape, capRing1, 1.52);
+    bishopShape = min(bishopShape, capRing2);
+    bishopShape = blend(bishopShape, capRing3, 0.57);
+    bishopShape = min(bishopShape, mitre);
+    bishopShape = min(bishopShape, tip);
+    bishopShape = max(bishopShape, -slit);
+    
+    return bishopShape;
+}
+
+float king(vec3 pt) {
+    float base = base2(pt);
+    vec2 profile = vec2(length(pt.xz), pt.y);
+    
+    vec2 diskCenter = profile - vec2(0.0, 4.62);
+    float crownDisk = ellipse2(diskCenter, vec2(1.78, 0.42));
+    
+    vec3 vBeamPos = pt - vec3(0.0, 5.22, 0.0);
+    float verticalBeam = roundBox(vBeamPos, vec3(0.28, 1.52, 0.23), 0.0);
+    
+    vec3 hBeamPos = pt - vec3(0.0, 5.82, 0.0);
+    float horizontalBeam = roundBox(hBeamPos, vec3(0.98, 0.28, 0.23), 0.0);
+    
+    float kingPiece = min(base, crownDisk);
+    kingPiece = min(kingPiece, verticalBeam);
+    kingPiece = min(kingPiece, horizontalBeam);
+    
+    return kingPiece;
+}
+
+float queen(vec3 point) {
+    float pedestal = base2(point);
+    vec2 crossSec = vec2(length(point.xz), point.y);
+    
+    vec2 crownCenter = crossSec - vec2(0.0, 4.02);
+    float crownBody = ellipse2(crownCenter, vec2(1.28, 1.52));
+    
+    vec2 cutCenter = crossSec - vec2(0.0, 2.02);
+    float crownCut = roundBox(vec3(cutCenter, 0.0), vec3(2.98, 2.02, 2.98), 0.0);
+    
+    vec2 orbCenter = crossSec - vec2(0.0, 5.62);
+    float topOrb = ellipse2(orbCenter, vec2(0.48, 0.48));
+    
+    vec3 absPoint = vec3(abs(point.x), point.y, abs(point.z));
+    if (absPoint.x > absPoint.z) {
+        absPoint = absPoint.zyx;
+    }
+    
+    vec3 notchCenter = absPoint - vec3(0.98, 4.72, 2.18);
+    float cornerNotch = length(notchCenter) - 1.08;
+    
+    float queenShape = min(pedestal, max(crownBody, -crownCut));
+    queenShape = min(queenShape, topOrb);
+    queenShape = max(queenShape, -cornerNotch);
+    
+    return queenShape;
+}
+
+float torusHorizontal(vec3 position, float majorRad, float minorRad) {
+    vec2 radialComp = vec2(length(position.xy) - majorRad, position.z);
+    return length(radialComp) - minorRad;
+}
+
+float torusVertical(vec3 position, float majorRad, float minorRad) {
+    vec2 radialComp = vec2(length(position.yz) - majorRad, position.x);
+    return length(radialComp) - minorRad;
+}
+
+float clockSphere(vec3 position) {
+    return length(position) - 1.18;
+}
+
+float getClockPattern(vec3 p) {
+    vec3 np = normalize(p);
+    float a = (atan(np.x, np.z) + 3.14159) / 6.28318;
+    float l = length(vec2(np.x, np.z));
+    
+    float ll = a * 2.0 + pow(l, 0.3) * 7.0;
+    ll = fract(ll);
+    
+    float ra = a * 24.0 - iTime;
+    
+    float bgline = step(0.02, abs(ll - 0.65) - 0.35);
+    float num = step(0.3, fract(ra) * 2.0 - 0.5);
+    
+    return mix(0.3, 0.9, bgline * num); // 0.3-0.9 arası brightness
+}
+
+float GetDistanceChain(vec3 vPos) {
+    vec3 vChainDomain = vPos;
+    vChainDomain.y = fract(vChainDomain.y + 0.5) - 0.5;
+    float fDistTorus1 = torusHorizontal(vChainDomain, 0.55, 0.15);
+    
+    vChainDomain.y = fract(vPos.y + 1.0) - 0.5;
+    float fDistTorus2 = torusVertical(vChainDomain, 0.55, 0.15);
+    
+    return min(fDistTorus1, fDistTorus2);
+}
+
+float chessField(vec3 p) {
+    vec3 id = floor(p / 10.0);
+    vec3 localP = mod(p, 10.0) - 5.0;
+    
+    float randVal = rnd(id.xz + vec2(id.y * 10.0));
+    
+    bool isGroundLevel = (id.y == 0.0);
+    
+    float pieceType = fract(randVal * 6.0);
+    
+    // ANİMASYON SADECE YAKINLARDA! 🎯
+    float distToCamera = length(vec3(id.x * 10.0, 0.0, id.z * 10.0));
+    bool isCloseToCamera = distToCamera < 30.0; // 30 birim yakınlık!
+    
+    // Sadece yakındaysa animasyon yap!
+    float animTime = isCloseToCamera ? iTime * (randVal * 2.0 - 1.0) * 0.8 : 0.0;
+    float rotAngle = isCloseToCamera ? animTime : 0.0;
+    
+    float piece;
+    
+    if (pieceType < 0.09) {
+        vec3 chainP = localP;
+        // ZİNCİR ANİMASYONU - SADECE YAKINLARDA! ⛓️
+        if (isGroundLevel && isCloseToCamera) chainP.y += sin(iTime) + 3.5;
+        else if (isGroundLevel) chainP.y += 3.5; // Uzaktaysa sabit pozisyon
+        piece = GetDistanceChain(chainP);
+    } else if (pieceType < 0.24) {
+        vec3 clockP = localP;
+        
+        // KÜRE ANİMASYONU - SADECE YAKINLARDA! 💎
+        if (isCloseToCamera) {
+            float moveSpeed = (randVal * 2.0 - 1.0) * 0.3;  // YAVAŞ!
+            float moveTime = iTime * moveSpeed;
+            
+            float orbitRadius = 1.5;
+            float orbitAngle = moveTime + randVal * 6.28;
+            clockP.x += cos(orbitAngle) * orbitRadius;
+            clockP.z += sin(orbitAngle) * orbitRadius;
+            
+            float verticalSpeed = (randVal * 2.0 - 1.0) * 0.8;  // YAVAŞ! -0.8 ile +0.8 arası
+            float verticalPhase = randVal * 6.28;  // Farklı başlangıç
+            float verticalOffset = sin(iTime * verticalSpeed + verticalPhase) * 1.2;  // Daha geniş hareket
+            clockP.y += 1.2 + verticalOffset;
+            
+            float rotSpeed = (randVal * 2.0 - 1.0) * 0.5;  // YAVAŞ!
+            float angle = iTime * rotSpeed;
+            float c = cos(angle), s = sin(angle);
+            clockP.xz = vec2(c * clockP.x - s * clockP.z, s * clockP.x + c * clockP.z);
+        } else {
+            // Uzaktaysa sabit pozisyon - animasyon yok! ⏸️
+            clockP.y += 1.2;
+        }
+        
+        piece = clockSphere(clockP);
+    } else if (pieceType < 0.35) {
+        float tilt = sin(animTime * 2.0) * 0.2;
+        float c1 = cos(tilt), s1 = sin(tilt);
+        vec3 p = localP;
+        p.xy = vec2(c1 * localP.x - s1 * localP.y, s1 * localP.x + c1 * localP.y);
+        float c = cos(-rotAngle * 0.5), s = sin(-rotAngle * 0.5);
+        p.xz = vec2(c * p.x - s * p.z, s * p.x + c * p.z);
+        piece = pawn(p);
+    } else if (pieceType < 0.38) {
+        float c = cos(-rotAngle), s = sin(-rotAngle);
+        vec3 p = localP;
+        p.xz = vec2(c * localP.x - s * localP.z, s * localP.x + c * localP.z);
+        p.z += sin(animTime * 2.5) * 0.4; // İleri-geri!
+        piece = rook(p);
+    } else if (pieceType < 0.54) {
+        float c = cos(-rotAngle * 1.5), s = sin(-rotAngle * 1.5);
+        vec3 p = localP;
+        p.xz = vec2(c * localP.x - s * localP.z, s * localP.x + c * localP.z);
+        p.z += sin(animTime * 3.0) * 0.3; // İleri-geri hareket!
+        if (isGroundLevel && isCloseToCamera) {
+            piece = horseModel(p); // AT - sadece yakında!
+        } else {
+            piece = knight(p); // Knight - uzakta veya üstte!
+        }
+    } else if (pieceType < 0.69) {
+        float c = cos(-rotAngle * 0.8), s = sin(-rotAngle * 0.8);
+        vec3 p = localP;
+        p.xz = vec2(c * localP.x - s * localP.z, s * localP.x + c * localP.z);
+        p.z += sin(animTime * 2.0) * 0.35; // İleri-geri!
+        piece = bishop(p);
+    } else if (pieceType < 0.85) {
+        float c = cos(-rotAngle * 1.2), s = sin(-rotAngle * 1.2);
+        vec3 p = localP;
+        p.xz = vec2(c * localP.x - s * localP.z, s * localP.x + c * localP.z);
+        float scale = 1.0 + sin(animTime * 2.5) * 0.05;
+        p *= scale;
+        piece = queen(p) / scale;
+    } else {
+        float c = cos(-rotAngle * 2.0), s = sin(-rotAngle * 2.0);
+        vec3 p = localP;
+        p.xz = vec2(c * localP.x - s * localP.z, s * localP.x + c * localP.z);
+        piece = king(p);
+    }
+    
+    return piece;
+}
+
+float tileShape(vec3 position) {
+     vec2 tileLocal = mod(position.xz, 1.0) - vec2(0.5);
+     vec3 boxPos = vec3(tileLocal.x, position.y, tileLocal.y);
+     return roundBox(boxPos, vec3(0.468), 0.021);
+}
+
+float sceneDistance(vec3 position) {
+     float floorTiles = tileShape(position);
+     float chessPieces = chessField(position);
+     return min(floorTiles, chessPieces);    
+}
+
+float trace(vec3 ro, vec3 rd) {
+    float t = 0.0;
+    for(int i = 0; i < 120; i++) {
+        vec3 p = ro + rd * t;
+        float dist = sceneDistance(p);
+        
+        float distFromCamera = length(p - ro);
+        float threshold;
+        
+        // Yüksek kalite - parçalanma yok!
+        if (distFromCamera < 15.0) {
+            threshold = 0.0002;
+        } else if (distFromCamera < 30.0) {
+            threshold = 0.0008;
+        } else if (distFromCamera < 60.0) {
+            threshold = 0.003;
+        } else {
+            threshold = 0.01;
+        }
+        
+        if(dist < threshold || t > 120.0) break;
+        
+        // Orijinal step sizes
+        float stepSize;
+        if (distFromCamera < 20.0) {
+            stepSize = 0.4;
+        } else if (distFromCamera < 50.0) {
+            stepSize = 0.6;
+        } else {
+            stepSize = 0.8;
+        }
+        
+        t += dist * stepSize;
+    }
+    return t;   
+}
+
+vec3 normal(vec3 sp) {
+    float distFromCamera = length(sp - uCameraPos);
+    
+    float epsilon;
+    if (distFromCamera < 20.0) {
+        epsilon = 0.0001;
+    } else if (distFromCamera < 50.0) {
+        epsilon = 0.0005;
+    } else {
+        epsilon = 0.001;
+    }
+    
+    vec2 e = vec2(epsilon, 0.0);
+    return normalize(vec3(
+        sceneDistance(sp + e.xyy) - sceneDistance(sp - e.xyy),
+        sceneDistance(sp + e.yxy) - sceneDistance(sp - e.yxy),
+        sceneDistance(sp + e.yyx) - sceneDistance(sp - e.yyx)
+    ));
+}
+
+float calculateAO(vec3 pos, vec3 nor) {
+    float sca = 2.0, occ = 0.0;
+    // 5 yerine 4 iterasyon - biraz daha hızlı
+    for(int i = 0; i < 4; i++) {
+        float hr = 0.01 + float(i) * 0.5 / 3.0;        
+        float dd = sceneDistance(nor * hr + pos);
+        occ += (hr - dd) * sca;
+        sca *= 0.75;
+    }
+    return clamp(1.0 - occ, 0.0, 1.0);    
+}
+
+vec3 lighting(vec3 sp, vec3 sn, vec3 lp, vec3 rd) {
+    float distFromCamera = length(sp - uCameraPos);
+    
+    vec3 lv = lp - sp;
+    float ldist = max(length(lv), 0.001);
+    vec3 ldir = lv / ldist;
+    float atte = 1.0 / (1.0 + 0.002 * ldist * ldist);
+    float diff = max(dot(ldir, sn), 0.0);
+    
+    vec3 id = floor(sp / 10.0);
+    vec3 localP = mod(sp, 10.0) - 5.0;
+    float randVal = rnd(id.xz + vec2(id.y * 10.0));
+    float pieceType = fract(randVal * 6.0);
+    bool isClockSphere = (pieceType < 0.15);
+    
+    float specPower = isClockSphere ? 64.0 : 10.0; // SÜPER METALİK PARLAKLIK! ✨
+    float spec = pow(max(dot(reflect(-ldir, sn), -rd), 0.0), specPower) * (isClockSphere ? 4.5 : 1.0); // METAL GİBİ PARLAK! 💎
+    
+    float ao = 1.0;
+    if (distFromCamera < 40.0) {
+        ao = calculateAO(sp, sn);
+    }
+    
+    vec2 gridCoord = floor(sp.xz);
+    float patternValue = mod(gridCoord.x + gridCoord.y, 2.0);
+    vec3 darkGray = vec3(0.05);
+    vec3 lightGray = vec3(0.35);
+    vec3 tileColor = mix(darkGray, lightGray, patternValue);
+    
+    bool isChainCell = (pieceType >= 0.15 && pieceType < 0.24);
+    
+    float chessPiecePattern = mod(floor(sp.x / 10.0) + floor(sp.z / 10.0), 2.0);
+    
+    // GÜNDÜZ RENKLERİ (08:00-20:00) - Kahverengi/Siyah
+    vec3 dayLightPiece = vec3(0.3, 0.22, 0.08);
+    vec3 dayDarkPiece = vec3(0.02, 0.02, 0.01);
+    
+    // GECE RENKLERİ (20:00-08:00) - SÜPER VIBRANT TURUNCU/MAVİ! 🔥💙
+    vec3 nightLightPiece = vec3(2.2, 0.65, 0.15);  // SICAK PARLAK TURUNCU! 🔥
+    vec3 nightDarkPiece = vec3(0.15, 0.55, 1.8);   // ELEKTRİK MAVİ! ⚡
+    
+    vec3 lightPieceColor = isDayTime ? dayLightPiece : nightLightPiece;
+    vec3 darkPieceColor = isDayTime ? dayDarkPiece : nightDarkPiece;
+    vec3 pieceColor = mix(darkPieceColor, lightPieceColor, chessPiecePattern);
+    
+    if (isClockSphere) {
+        vec3 clockP = localP;
+        clockP.y -= 1.2;
+        
+        // KÜRE PATTERN ROTASYONU - SADECE YAKINLARDA! 🎨
+        float distToCam = length(sp - uCameraPos);
+        if (distToCam < 30.0) {
+            float rotSpeed = (randVal * 2.0 - 1.0) * 1.0;
+            float angle = iTime * rotSpeed;
+            float c = cos(angle), s = sin(angle);
+            clockP.xz = vec2(c * clockP.x - s * clockP.z, s * clockP.x + c * clockP.z);
+        }
+        
+        float pattern = getClockPattern(clockP);
+        
+        vec3 darkFloor = vec3(0.4);  // SÜPER PARLAK METALİK YÜZEY! 💎
+        vec3 lightFloor = vec3(0.7); // AYDINLIK METALİK PARILTISI! ✨
+        pieceColor = mix(darkFloor, lightFloor, pattern);
+    }
+    
+    if (isChainCell && !isClockSphere) {
+        pieceColor = vec3(0.05);
+    }
+    
+    float isPiece = step(abs(chessField(sp)), 0.5);
+    vec3 albedo = mix(tileColor, pieceColor, isPiece);
+    
+    bool isOrangePiece = (isPiece > 0.5 && chessPiecePattern > 0.5 && !isClockSphere && !isChainCell);
+    
+    vec3 specColor;
+    if (isChainCell || isClockSphere) {
+        // KÜRELER İÇİN SÜPER METALİK SPECULAR! 💎✨
+        specColor = isClockSphere ? vec3(1.2, 1.2, 1.3) : vec3(0.3);  // Gümüş metalik parıltı!
+    } else if (isDayTime) {
+        // GÜNDÜZ - Sıcak turuncu specular
+        specColor = vec3(0.9, 0.5, 0.2);
+    } else {
+        // GECE - PARLAK VIBRANT SPECULAR! ✨
+        if (isOrangePiece) {
+            specColor = vec3(2.5, 0.8, 0.3);  // SICAK ATEŞ PARILTISI! 🔥
+        } else {
+            specColor = vec3(0.4, 1.2, 2.8);  // PARLAK MAVİ IŞIK! 💎
+        }
+    }
+    
+    vec3 color = (diff * albedo + spec * specColor) * atte;
+    return color * ao;   
+}
+
+vec2 path(float z) { 
+    float s = sin(z / 36.0) * cos(z / 18.0);
+    return vec2(s * 16.0, 0.0); 
+}
+
+void main() {
+    vec2 fragCoord = gl_FragCoord.xy;
+    vec2 uv = (fragCoord - iResolution.xy * 0.5) / iResolution.y;
+    
+    uv = normalize(uv) * tan(asin(length(uv) * 1.0));
+    
+    vec3 ro = uCameraPos;
+    vec3 lk = uCameraTarget;
+    vec3 lp = ro + vec3(0.0, 5.0, 0.0);
+    
+    float FOV = 1.57;
+    vec3 fwd = normalize(lk - ro);
+    vec3 rgt = normalize(vec3(fwd.z, 0.0, -fwd.x)); 
+    vec3 up = cross(fwd, rgt); 
+    vec3 rd = normalize(fwd + FOV * uv.x * rgt + FOV * uv.y * up);
+
+    float t = trace(ro, rd);
+    float far = smoothstep(0.0, 1.0, t / 120.0);
+    vec3 sp = ro + rd * t;
+    vec3 sn = normal(sp);
+    
+    vec3 color = lighting(sp, sn, lp, rd);
+    
+    vec3 refRay = reflect(rd, sn);
+    float t2 = trace(sp + sn * 0.01, refRay);
+    vec3 rsp = sp + sn * 0.01 + refRay * t2;
+    vec3 rsn = normal(rsp);
+    vec3 refColor = lighting(rsp, rsn, lp, refRay);
+    color += refColor * 0.6;
+    
+    // SKY COLORS - DAY vs NIGHT
+    vec3 topColor, upperColor, midColor, hotPinkColor, deepPinkColor, darkPinkColor, veryDarkColor, nearBlackColor, blackColor;
+    
+    if (isDayTime) {
+        // GÜNDÜZ (08:00-20:00) - Kahve, kırmızı, yumuşak turuncu gradyan
+        topColor = vec3(1.0, 0.6, 0.25);       // Yumuşak turuncu
+        upperColor = vec3(1.2, 0.4, 0.3);      // Kırmızı-turuncu  
+        midColor = vec3(1.1, 0.45, 0.28);      // Ara geçiş
+        hotPinkColor = vec3(0.8, 0.35, 0.25);  // Koyu turuncu-kırmızı
+        deepPinkColor = vec3(0.6, 0.28, 0.20); // Kahve-kırmızı
+        darkPinkColor = vec3(0.45, 0.22, 0.15);// Koyu kahve
+        veryDarkColor = vec3(0.35, 0.18, 0.12);// Çok koyu kahve
+        nearBlackColor = vec3(0.25, 0.15, 0.10);// Kahverengi
+        blackColor = vec3(0.20, 0.12, 0.08);   // En koyu kahve
+    } else {
+        // GECE (20:00-08:00) - VIBRANT KOYU PEMBE/TAM SİYAH! 💖⚫
+        topColor = vec3(2.2, 0.9, 1.4);        // VIBRANT KOYU PEMBE! 💗
+        upperColor = vec3(2.4, 0.7, 1.2);      // GÜÇLÜ PEMBE! 🌸
+        midColor = vec3(2.5, 0.55, 1.0);       // SÜPER MAGENTA! 💕
+        hotPinkColor = vec3(2.2, 0.4, 0.85);   // ATEŞ PEMBE! 🔥
+        deepPinkColor = vec3(1.6, 0.25, 0.6);  // DERİN PEMBE! 💜
+        darkPinkColor = vec3(0.8, 0.12, 0.35); // KOYU MOR! 🌺
+        veryDarkColor = vec3(0.2, 0.03, 0.1);  // ÇOK KOYU! 🌑
+        nearBlackColor = vec3(0.05, 0.0, 0.02); // NEREDEYSE SİYAH! ⚫
+        blackColor = vec3(0.0, 0.0, 0.0);      // TAM SİYAH! ⬛
+    }
+    
+    float y = rd.y;
+    vec3 skyGradient;
+    
+    // SİYAHLIK x2 DAHA YÜKSEK! ⚫⚫⚫⚫💖
+    if (y > 0.8) {
+        // SADECE ÇOK ÇOK YUKARI - VIBRANT PEMBE! 💗
+        skyGradient = mix(upperColor, topColor, smoothstep(0.8, 0.95, y));
+    } else if (y > 0.65) {
+        // YUKARI - PEMBE DEVAM
+        skyGradient = mix(midColor, upperColor, smoothstep(0.65, 0.8, y));
+    } else if (y > 0.5) {
+        // PEMBE BÖLGE
+        skyGradient = mix(hotPinkColor, midColor, smoothstep(0.5, 0.65, y));
+    } else if (y > 0.35) {
+        // KARARMA BAŞLIYOR
+        skyGradient = mix(deepPinkColor, hotPinkColor, smoothstep(0.35, 0.5, y));
+    } else if (y > 0.2) {
+        // HIZLA KARARMA!
+        skyGradient = mix(darkPinkColor, deepPinkColor, smoothstep(0.2, 0.35, y));
+    } else if (y > 0.05) {
+        // ÇOK KOYU! 
+        skyGradient = mix(veryDarkColor, darkPinkColor, smoothstep(0.05, 0.2, y));
+    } else if (y > -0.1) {
+        // NEREDEYSE SİYAH!
+        skyGradient = mix(nearBlackColor, veryDarkColor, smoothstep(-0.1, 0.05, y));
+    } else {
+        // TAM SİYAH! ⚫⬛ (ÇOK BÜYÜK ALAN!)
+        skyGradient = blackColor;
+    }
+    
+    vec3 sky = skyGradient * (isDayTime ? 3.5 : 4.5) / 8.0;
+    
+    color = mix(color, sky, far);
+    
+    float vig = 1.0 - smoothstep(1.0, 3.5, length(uv));
+    color *= mix(0.8, 1.0, vig);
+
+
+    gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+        function compileShader(source, type) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error('Shader error:', gl.getShaderInfoLog(shader));
+                return null;
+            }
+            return shader;
+        }
+
+        const vertexShader = compileShader(vertexShaderSource, gl.VERTEX_SHADER);
+        const fragmentShader = compileShader(fragmentShaderSource, gl.FRAGMENT_SHADER);
+
+        const program = gl.createProgram();
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            console.error('Program error:', gl.getProgramInfoLog(program));
+        }
+
+        gl.useProgram(program);
+
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        const positions = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+        gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+        const positionLocation = gl.getAttribLocation(program, 'position');
+        gl.enableVertexAttribArray(positionLocation);
+        gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+        const iResolutionLocation = gl.getUniformLocation(program, 'iResolution');
+        const iTimeLocation = gl.getUniformLocation(program, 'iTime');
+        const isDayTimeLocation = gl.getUniformLocation(program, 'isDayTime');
+        const uRabbitPosLocation = gl.getUniformLocation(program, 'uRabbitPos');
+        const uRabbitRotLocation = gl.getUniformLocation(program, 'uRabbitRot');
+        const uCameraPosLocation = gl.getUniformLocation(program, 'uCameraPos');
+        const uCameraTargetLocation = gl.getUniformLocation(program, 'uCameraTarget');
+        
+        function checkIsDayTime() {
+            const now = new Date();
+            const hour = now.getHours();
+            // GÜNDÜZ: 08:00-20:00 (8am - 8pm)
+            // GECE: 20:00-08:00 (8pm - 8am)
+            return hour >= 8 && hour < 20;
+        }
+
+        function resize() {
+            // Yüksek çözünürlük ama akıllı optimizasyon!
+            const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+            canvas.width = window.innerWidth * pixelRatio;
+            canvas.height = window.innerHeight * pixelRatio;
+            canvas.style.width = window.innerWidth + 'px';
+            canvas.style.height = window.innerHeight + 'px';
+            gl.viewport(0, 0, canvas.width, canvas.height);
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        const threeCanvas = document.getElementById('threeCanvas');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ 
+            canvas: threeCanvas, 
+            alpha: true,
+            antialias: true,
+            powerPreference: "high-performance",
+            precision: "highp"
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x000000, 0);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+        scene.add(ambientLight);
+        
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(5, 10, 5);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 50;
+        scene.add(dirLight);
+
+        const backLight = new THREE.DirectionalLight(0xffaa66, 0.8);
+        backLight.position.set(-5, 5, -5);
+        scene.add(backLight);
+        
+        const fillLight = new THREE.DirectionalLight(0xaaddff, 0.6);
+        fillLight.position.set(0, 5, -10);
+        scene.add(fillLight);
+
+        let rabbitModel = null;
+        let rabbitMixer = null;
+        const loader = new THREE.GLTFLoader();
+        
+        loader.load(
+            'https://busrasuhaydar.github.io/rabbit/rabbit.glb',
+            function(gltf) {
+                rabbitModel = gltf.scene;
+                rabbitModel.scale.set(0.16, 0.16, 0.16);
+                rabbitModel.position.set(rabbit.position.x, rabbit.position.y, rabbit.position.z);
+                rabbitModel.rotation.y = 0;
+                
+                rabbitModel.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        
+                        if (child.material) {
+                            child.material.metalness = 0.7;
+                            child.material.roughness = 0.3;
+                            child.material.needsUpdate = true;
+                            
+                            if (child.material.map) {
+                                child.material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                                child.material.map.minFilter = THREE.LinearMipMapLinearFilter;
+                                child.material.map.magFilter = THREE.LinearFilter;
+                            }
+                        }
+                        child.material.color.multiplyScalar(1.5); // Brighter
+                        child.material.needsUpdate = true;
+                    }
+                });
+                
+                scene.add(rabbitModel);
+                
+                // KULAK KEMİKLERİNİ BUL! 🔍
+                let earLeftBone = null;
+                let earRightBone = null;
+                
+                console.log('🔍 Searching for ear bones...');
+                rabbitModel.traverse((child) => {
+                    // Tüm bone ve object isimlerini kontrol et
+                    if (child.name) {
+                        const nameLower = child.name.toLowerCase();
+                        console.log('Found bone/object:', child.name, '- Type:', child.type);
+                        
+                        // Kulak isimleri: ear, oreille, ohr, kulak, vs.
+                        if (nameLower.includes('ear') || nameLower.includes('kulak') || 
+                            nameLower.includes('oreille') || nameLower.includes('ohr')) {
+                            
+                            // Sol kulak
+                            if (nameLower.includes('left') || nameLower.includes('sol') || 
+                                nameLower.includes('l.') || nameLower.includes('.l') ||
+                                nameLower.includes('gauche')) {
+                                earLeftBone = child;
+                                console.log('✅ SOL KULAK BULUNDU:', child.name);
+                            } 
+                            // Sağ kulak
+                            else if (nameLower.includes('right') || nameLower.includes('sag') || 
+                                     nameLower.includes('r.') || nameLower.includes('.r') ||
+                                     nameLower.includes('droite')) {
+                                earRightBone = child;
+                                console.log('✅ SAĞ KULAK BULUNDU:', child.name);
+                            }
+                        }
+                    }
+                });
+                
+                rabbit.earLeftBone = earLeftBone;
+                rabbit.earRightBone = earRightBone;
+                rabbit.earTime = 0;
+                
+                if (earLeftBone && earRightBone) {
+                    console.log('🎉 HER İKİ KULAK DA HAZIR!');
+                } else {
+                    console.warn('⚠️ KULAKLAR BULUNAMADI!', 'Sol:', earLeftBone?.name, 'Sağ:', earRightBone?.name);
+                }
+                
+                if (gltf.animations && gltf.animations.length > 0) {
+                    rabbitMixer = new THREE.AnimationMixer(rabbitModel);
+                    const action = rabbitMixer.clipAction(gltf.animations[0]);
+                    action.setDuration(gltf.animations[0].duration * 0.4);
+                    action.play();
+                }
+                
+                console.log('Rabbit loaded!');
+            },
+            function(xhr) {
+                console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+            },
+            function(error) {
+                console.error('Error loading rabbit:', error);
+            }
+        );
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            resize();
+        });
+
+        let lastTime = Date.now();
+        
+        function checkCollision(newX, newZ) {
+            const pieceX = Math.floor(newX / 10.0);
+            const pieceZ = Math.floor(newZ / 10.0);
+            const pieceCenterX = pieceX * 10.0;
+            const pieceCenterZ = pieceZ * 10.0;
+            const dist = Math.sqrt(
+                Math.pow(newX - pieceCenterX, 2) + 
+                Math.pow(newZ - pieceCenterZ, 2)
+            );
+            return dist < 2.0;
+        }
+        
+        function render() {
+            const currentTime = Date.now();
+            const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1);
+            lastTime = currentTime;
+            const time = (currentTime - startTime) / 1000;
+            
+            
+            let forward = 0;
+            let turnInput = 0;
+            
+            if (cinematicMode) {
+                cinematicTime += deltaTime * 0.65;
+                
+                const totalCycle = 300.0;
+                const t = cinematicTime % totalCycle;
+                
+                function smoothBlend(progress, duration) {
+                    const p = Math.min(progress / duration, 1.0);
+                    return p * p * (3.0 - 2.0 * p);
+                }
+                
+                let cameraAngle, cameraDist, cameraHeight, rabbitSpeed;
+                let targetY = 2;
+                const rabbitPathRadius = 28;
+                
+                if (t < 50.0) {
+                    const localT = t;
+                    const transBlend = smoothBlend(localT, 12.0);
+                    
+                    cameraAngle = cinematicTime * 0.12 + transBlend * Math.PI * 0.3;
+                    cameraDist = 14 + transBlend * 6;
+                    cameraHeight = 6 + transBlend * 4;
+                    rabbitSpeed = 0.38;
+                    targetY = 2 + Math.sin(cinematicTime * 0.4) * 1.2;
+                    
+                } else if (t < 100.0) {
+                    const localT = t - 50.0;
+                    const transBlend = smoothBlend(localT, 12.0);
+                    
+                    cameraAngle = Math.PI * 0.3 + cinematicTime * 0.08 + transBlend * Math.PI * 0.4;
+                    cameraDist = 20 + transBlend * -5;
+                    cameraHeight = 10 + Math.sin(cinematicTime * 0.3) * 3 + transBlend * -3;
+                    rabbitSpeed = 0.42;
+                    targetY = 2.5 + Math.sin(cinematicTime * 0.5) * 1.5;
+                    
+                } else if (t < 150.0) {
+                    const localT = t - 100.0;
+                    const transBlend = smoothBlend(localT, 12.0);
+                    
+                    cameraAngle = Math.PI * 0.7 + cinematicTime * 0.15 + transBlend * Math.PI * 0.5;
+                    cameraDist = 15 + transBlend * -3;
+                    cameraHeight = 7 + transBlend * -2;
+                    rabbitSpeed = 0.36;
+                    targetY = 2.2 + Math.sin(cinematicTime * 0.6) * 1.0;
+                    
+                } else if (t < 200.0) {
+                    const localT = t - 150.0;
+                    const transBlend = smoothBlend(localT, 12.0);
+                    
+                    cameraAngle = Math.PI * 1.2 + cinematicTime * 0.18 + transBlend * Math.PI * 0.3;
+                    cameraDist = 12 + transBlend * 6;
+                    cameraHeight = 5 + transBlend * 7;
+                    rabbitSpeed = 0.40;
+                    targetY = 2 + Math.sin(cinematicTime * 0.45) * 1.3;
+                    
+                } else if (t < 230.0) {
+                    const diveT = t - 200.0;
+                    
+                    if (diveT < 15.0) {
+                        const descendProgress = diveT / 15.0;
+                        const smoothDescend = descendProgress * descendProgress * descendProgress;
+                        targetY = 2 - smoothDescend * 18.0;
+                        
+                        cameraAngle = Math.PI * 1.5 + cinematicTime * 0.1;
+                        cameraDist = 18 - smoothDescend * 5;
+                        cameraHeight = 12 - smoothDescend * 25;
+                        rabbitSpeed = 0.25;
+                    } else {
+                        targetY = -16.0;
+                        
+                        const exploreT = diveT - 15.0;
+                        const wiggleX = Math.sin(exploreT * 1.5) * 5.0;
+                        const wiggleZ = Math.cos(exploreT * 1.2) * 4.0;
+                        
+                        cameraAngle = Math.PI * 1.6 + exploreT * 0.3;
+                        cameraDist = 13;
+                        cameraHeight = -18;
+                        rabbitSpeed = 0.15;
+                    }
+                    
+                } else if (t < 260.0) {
+                    const riseT = t - 230.0;
+                    const riseDuration = 30.0;
+                    const riseProgress = riseT / riseDuration;
+                    const smoothRise = 1.0 - Math.pow(1.0 - riseProgress, 2.0);
+                    
+                    targetY = -16.0 + smoothRise * 18.0;
+                    
+                    cameraAngle = Math.PI * 1.9 + cinematicTime * 0.12;
+                    cameraDist = 13 + smoothRise * 5;
+                    cameraHeight = -18 + smoothRise * 30;
+                    rabbitSpeed = 0.32 + smoothRise * 0.08;
+                    
+                } else {
+                    const returnT = t - 260.0;
+                    const returnBlend = smoothBlend(returnT, 12.0);
+                    
+                    targetY = 2 + Math.sin(cinematicTime * 0.5) * 0.8;
+                    
+                    cameraAngle = cinematicTime * 0.1;
+                    cameraDist = 18 - returnBlend * 4;
+                    cameraHeight = 12 - returnBlend * 6;
+                    rabbitSpeed = 0.40;
+                }
+                
+                const rabbitMoveDir = cinematicTime * rabbitSpeed;
+                
+                const targetX = Math.cos(rabbitMoveDir) * rabbitPathRadius;
+                const targetZ = Math.sin(rabbitMoveDir) * rabbitPathRadius;
+                
+                if (!rabbit.smoothX) rabbit.smoothX = targetX;
+                if (!rabbit.smoothZ) rabbit.smoothZ = targetZ;
+                
+                rabbit.smoothX += (targetX - rabbit.smoothX) * 0.1;
+                rabbit.smoothZ += (targetZ - rabbit.smoothZ) * 0.1;
+                
+                rabbit.position.x = rabbit.smoothX;
+                rabbit.position.z = rabbit.smoothZ;
+                
+                if (!rabbit.smoothY) rabbit.smoothY = 2;
+                rabbit.smoothY += (targetY - rabbit.smoothY) * 0.06;
+                rabbit.position.y = rabbit.smoothY;
+                
+                const lookAhead = 0.18;
+                const nextX = Math.cos(rabbitMoveDir + lookAhead) * rabbitPathRadius;
+                const nextZ = Math.sin(rabbitMoveDir + lookAhead) * rabbitPathRadius;
+                const targetRotation = Math.atan2(nextZ - rabbit.position.z, nextX - rabbit.position.x) + Math.PI / 2;
+                
+                if (!rabbit.smoothRotation) rabbit.smoothRotation = targetRotation;
+                
+                let rotDiff = targetRotation - rabbit.smoothRotation;
+                while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+                while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+                
+                rabbit.smoothRotation += rotDiff * 0.1;
+                rabbit.rotation = rabbit.smoothRotation;
+                
+                camera.position.x = rabbit.position.x + Math.cos(cameraAngle) * cameraDist;
+                camera.position.z = rabbit.position.z + Math.sin(cameraAngle) * cameraDist;
+                camera.position.y = rabbit.position.y + cameraHeight;
+                
+                camera.lookAt(rabbit.position.x, rabbit.position.y + 1.5, rabbit.position.z);
+                
+                const camToRabbit = Math.atan2(
+                    rabbit.position.z - camera.position.z,
+                    rabbit.position.x - camera.position.x
+                );
+                cameraYaw = camToRabbit;
+                
+                isMoving = true;
+                
+            } else {
+                
+                isMoving = false;
+                
+                if (!rabbit.stepTime) rabbit.stepTime = 0;
+                if (!rabbit.stepPhase) rabbit.stepPhase = 0;
+                
+                if (keys['ArrowUp'] || keys['w'] || keys['W']) {
+                    forward = 1;
+                    isMoving = true;
+                }
+                if (keys['ArrowDown'] || keys['s'] || keys['S']) {
+                    forward = -1;
+                    isMoving = true;
+                }
+                
+                if (!rabbit.stepTime) rabbit.stepTime = 0;
+                
+                if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                    turnInput = 1.0;
+                }
+                if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                    turnInput = -1.0;
+                }
+                
+                if (keys['q'] || keys['Q']) rabbit.verticalSpeed = 2.5;
+                else if (keys['e'] || keys['E']) rabbit.verticalSpeed = -2.5;
+                else rabbit.verticalSpeed = 0;
+                rabbit.position.y += rabbit.verticalSpeed * deltaTime;
+                
+                const turnSpeed = 2.5;
+                rabbit.rotation += turnInput * turnSpeed * deltaTime;
+                
+                if (forward !== 0) {
+                    rabbit.stepTime += deltaTime * 25.0;
+                    
+                    const step1 = Math.sin(rabbit.stepTime);
+                    const step2 = Math.sin(rabbit.stepTime + Math.PI * 0.5);
+                    const step3 = Math.sin(rabbit.stepTime + Math.PI);
+                    const step4 = Math.sin(rabbit.stepTime + Math.PI * 1.5);
+                    const avgStep = (step1 + step2 + step3 + step4) * 0.25;
+                    const normalizedStep = avgStep * 0.5 + 0.5;
+                    
+                    const stepBounce = Math.sin(rabbit.stepTime * 3.0) * 0.02;
+                    rabbit.position.y += stepBounce * Math.abs(forward);
+                    
+                    const baseSpeed = rabbit.moveSpeed * deltaTime;
+                    const speedMod = 0.95 + normalizedStep * 0.1;
+                    const moveAmount = forward * baseSpeed * speedMod;
+                    
+                    rabbit.position.x += Math.sin(rabbit.rotation) * moveAmount;
+                    rabbit.position.z += Math.cos(rabbit.rotation) * moveAmount;
+                } else {
+                    rabbit.stepTime = 0;
+                }
+            
+            }
+            
+            
+            if (rabbitModel) {
+                rabbitModel.position.set(rabbit.position.x, rabbit.position.y, rabbit.position.z);
+                rabbitModel.rotation.y = rabbit.rotation;
+                
+                // KULAKLAR HER ZAMAN TAM AÇILIP KAPANIR! 🐰👂
+                if (!rabbit.earTime) rabbit.earTime = 0;
+                rabbit.earTime += deltaTime * 3.0; // Daha yavaş, belirgin hareket
+                
+                if (rabbit.earLeftBone && rabbit.earRightBone) {
+                    // TAMAMEN AÇILIP KAPANMA! (0.0 = kapalı, 1.0 = açık)
+                    const earOpen = Math.sin(rabbit.earTime) * 0.5 + 0.5; // 0.0 ile 1.0 arası
+                    
+                    // Z ekseni = Kulakları açıp kapatma (yanlara)
+                    const earSpread = (earOpen * 0.8) - 0.4; // -0.4 ile +0.4 arası
+                    
+                    // X ekseni = Kulakları öne/arkaya
+                    const earTilt = Math.sin(rabbit.earTime * 1.3) * 0.3;
+                    
+                    // Sol kulak
+                    rabbit.earLeftBone.rotation.z = earSpread;
+                    rabbit.earLeftBone.rotation.x = earTilt;
+                    rabbit.earLeftBone.rotation.y = earOpen * 0.2; // Hafif rotasyon
+                    
+                    // Sağ kulak (ters yönde)
+                    rabbit.earRightBone.rotation.z = -earSpread;
+                    rabbit.earRightBone.rotation.x = earTilt;
+                    rabbit.earRightBone.rotation.y = -earOpen * 0.2;
+                }
+                
+                // ZIPLAMA SİSTEMİ! 🐰💫
+                rabbit.jumpCooldown -= deltaTime;
+                
+                // 2 dakikada bir (artı/eksi 30 saniye random) zıpla!
+                if (rabbit.jumpCooldown <= 0 && !rabbit.isJumping && !cinematicMode && !isMoving) {
+                    rabbit.isJumping = true;
+                    rabbit.jumpTime = 0;
+                    rabbit.jumpCooldown = rabbit.nextJumpIn;
+                    // Bir sonraki zıplama için random süre (90-150 saniye arası)
+                    rabbit.nextJumpIn = 90 + Math.random() * 60;
+                    console.log('🐰 ZIPLAMA! Bir sonraki zıplama: ' + rabbit.nextJumpIn.toFixed(1) + ' saniye');
+                }
+                
+                // Zıplama animasyonu!
+                if (rabbit.isJumping) {
+                    rabbit.jumpTime += deltaTime * 4.0; // Zıplama hızı
+                    
+                    if (rabbit.jumpTime < Math.PI) {
+                        // Zıplama yukarı-aşağı hareketi
+                        const jumpHeight = Math.sin(rabbit.jumpTime) * 3.5;
+                        rabbit.position.y = jumpHeight;
+                    } else {
+                        // Zıplama bitti!
+                        rabbit.isJumping = false;
+                        rabbit.jumpTime = 0;
+                        rabbit.position.y = 0;
+                    }
+                }
+                
+                if (rabbitMixer) {
+                    if (isMoving) {
+                        // HAREKET HALİNDE - HIZLI ANİMASYON! 🏃‍♂️
+                        rabbitMixer.timeScale = 6.0;
+                        rabbitMixer.update(deltaTime);
+                    } else if (rabbit.isJumping) {
+                        // ZIPLARKEN - ÇOK HIZLI! 🦘
+                        rabbitMixer.timeScale = 8.0;
+                        rabbitMixer.update(deltaTime);
+                    } else {
+                        // DURDUĞUNDA - ANİMASYON DURUR! ⏸️
+                        rabbitMixer.timeScale = 0;
+                    }
+                }
+            }
+            
+            
+            if (!cinematicMode) {
+                if (turnInput !== 0) {
+                    const targetYaw = rabbit.rotation;
+                    let diff = targetYaw - cameraYaw;
+                    
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+                    
+                cameraYaw += diff * 0.1 * deltaTime;
+            }
+            
+            const camAngle = cameraYaw + Math.PI + manualCameraAngle;
+            const camX = rabbit.position.x + Math.sin(camAngle) * cameraDistance;
+            const camY = rabbit.position.y + cameraHeight + manualCameraPitch * 5;
+            const camZ = rabbit.position.z + Math.cos(camAngle) * cameraDistance;
+            
+            camera.position.x += (camX - camera.position.x) * 5.0 * deltaTime;
+            camera.position.y += (camY - camera.position.y) * 5.0 * deltaTime;
+            camera.position.z += (camZ - camera.position.z) * 5.0 * deltaTime;
+            
+            camera.lookAt(
+                rabbit.position.x,
+                rabbit.position.y + 3.5,
+                rabbit.position.z
+            );
+            
+            } // MANUEL MOD SONU!
+            
+            gl.uniform2f(iResolutionLocation, canvas.width, canvas.height);
+            gl.uniform1f(iTimeLocation, time);
+            gl.uniform1i(isDayTimeLocation, checkIsDayTime() ? 1 : 0);
+            gl.uniform3f(uRabbitPosLocation, rabbit.position.x, rabbit.position.y, rabbit.position.z);
+            gl.uniform1f(uRabbitRotLocation, rabbit.rotation);
+            gl.uniform3f(uCameraPosLocation, camera.position.x, camera.position.y, camera.position.z);
+            gl.uniform3f(uCameraTargetLocation, rabbit.position.x, rabbit.position.y + 1.5, rabbit.position.z);
+            
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            
+            renderer.render(scene, camera);
+            
+            requestAnimationFrame(render);
+        }
+        render();
+    </script>
+</body>
+</html>
