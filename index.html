@@ -179,7 +179,7 @@
         
         let cameraYaw = 0;
         const cameraDistance = 20.0;
-        const cameraHeight = 2.5;
+        const cameraHeight = 8.0; // YÜKSEK! Yukarıdan bakıyor! 🌙
         
         const rabbit = {
             position: { x: 0, y: 0, z: 5 },
@@ -1663,7 +1663,7 @@ void main() {
                 
                 camera.position.x = rabbit.position.x + Math.cos(cameraAngle) * cameraDist;
                 camera.position.z = rabbit.position.z + Math.sin(cameraAngle) * cameraDist;
-                camera.position.y = rabbit.position.y + cameraHeight;
+                camera.position.y = rabbit.position.y + (checkIsDayTime() ? 2.5 : 8.0); // Gündüz 2.5, Gece 8.0!
                 
                 camera.lookAt(rabbit.position.x, rabbit.position.y + 1.5, rabbit.position.z);
                 
@@ -1822,7 +1822,7 @@ void main() {
             
             const camAngle = cameraYaw + Math.PI + manualCameraAngle;
             const camX = rabbit.position.x + Math.sin(camAngle) * cameraDistance;
-            const camY = rabbit.position.y + cameraHeight + manualCameraPitch * 5;
+            const camY = rabbit.position.y + (checkIsDayTime() ? 2.5 : 8.0) + manualCameraPitch * 5;
             const camZ = rabbit.position.z + Math.cos(camAngle) * cameraDistance;
             
             camera.position.x += (camX - camera.position.x) * 5.0 * deltaTime;
