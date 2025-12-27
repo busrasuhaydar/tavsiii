@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>DON'T FOLLOW THE WHITE RABBIT?!</title>
     <style>
         * {
@@ -117,18 +117,6 @@
                 display: block;
             }
         }
-        /* iPad ve Tablet desteği - genişletilmiş */
-        @media (max-width: 1366px) and (hover: none) {
-            .mobile-controls {
-                display: block !important;
-            }
-        }
-        /* Touch device kontrolü */
-        @media (pointer: coarse) {
-            .mobile-controls {
-                display: block !important;
-            }
-        }
         @media (orientation: landscape) and (max-width: 920px) {
             .mobile-controls {
                 display: block;
@@ -180,10 +168,7 @@
         if (!gl) {
             alert('WebGL not supported');
         }
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
-            window.innerWidth <= 768 || 
-            ('ontouchstart' in window) || 
-            (navigator.maxTouchPoints > 0);
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
         const startTime = Date.now();
         const keys = {};
         let cameraYaw = 0;
@@ -1074,9 +1059,7 @@ void main() {
             }
         }
         renderer.setSize(renderWidth, renderHeight);
-        const pixelRatio = isDesktop
-            ? Math.min(window.devicePixelRatio, 1.25)
-            : Math.min(window.devicePixelRatio, 1.5);
+        const pixelRatio = window.devicePixelRatio || 1; // Tavşan için maksimum çözünürlük!
         renderer.setPixelRatio(pixelRatio);
         console.log(` PixelRatio: ${pixelRatio.toFixed(2)} (${isDesktop ? 'Desktop' : 'Mobile'})`);
         renderer.setClearColor(0x000000, 0);
@@ -1120,6 +1103,7 @@ void main() {
                                 child.material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
                                 child.material.map.minFilter = THREE.LinearMipMapLinearFilter;
                                 child.material.map.magFilter = THREE.LinearFilter;
+                                child.material.map.generateMipmaps = true;
                             }
                         }
                         child.material.color.multiplyScalar(1.5);
