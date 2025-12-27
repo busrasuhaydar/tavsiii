@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <title>DON'T FOLLOW THE WHITE RABBIT?!</title>
+    <title>DON'T FOLLOW THE WHITE RABBIT?! by Su</title>
     <style>
         * {
             -webkit-tap-highlight-color: transparent;
@@ -133,6 +133,7 @@
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/webxr/VRButton.js"></script>
 </head>
 <body>
     <canvas id="canvas"></canvas>
@@ -148,6 +149,155 @@
         </div>
     </div>
     <script>
+                // VR DESTEĞI ALGILAMA
+        let isVRSupported = false;
+        let vrSession = null;
+        
+        if (navigator.xr) {
+            navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+                if (supported) {
+                    isVRSupported = true;
+                    console.log('🥽 VR DESTEĞI ALGILANDI!');
+                    // VR button ekle
+                    const vrButton = document.createElement('button');
+                    vrButton.style.position = 'fixed';
+                    vrButton.style.bottom = '20px';
+                    vrButton.style.left = '50%';
+                    vrButton.style.transform = 'translateX(-50%)';
+                    vrButton.style.padding = '15px 30px';
+                    vrButton.style.fontSize = '18px';
+                    vrButton.style.background = 'rgba(0, 200, 255, 0.9)';
+                    vrButton.style.color = 'white';
+                    vrButton.style.border = 'none';
+                    vrButton.style.borderRadius = '10px';
+                    vrButton.style.cursor = 'pointer';
+                    vrButton.style.zIndex = '10000';
+                    vrButton.textContent = '🥽 ENTER VR';
+                    vrButton.onclick = () => {
+                        if (vrSession) {
+                            vrSession.end();
+                        } else {
+                            navigator.xr.requestSession('immersive-vr').then((session) => {
+                                vrSession = session;
+                                renderer.xr.setSession(session);
+                                vrButton.textContent = '🥽 EXIT VR';
+                                session.addEventListener('end', () => {
+                                    vrSession = null;
+                                    vrButton.textContent = '🥽 ENTER VR';
+                                });
+                            });
+                        }
+                    };
+                    document.body.appendChild(vrButton);
+                }
+            });
+        }
+        
+        // PS5 / GAMEPAD DESTEĞI ALGILAMA
+        let gamepadIndex = null;
+        let gamepadConnected = false;
+        
+        window.addEventListener('gamepadconnected', (e) => {
+            console.log('🎮 GAMEPAD ALGILANDI:', e.gamepad.id);
+            gamepadIndex = e.gamepad.index;
+            gamepadConnected = true;
+            
+            // PS5 kontrolcü bildirimi
+            if (e.gamepad.id.includes('DualSense') || e.gamepad.id.includes('PlayStation')) {
+                console.log('🎮 PS5 DualSense Controller bağlandı!');
+            }
+        });
+        
+        window.addEventListener('gamepaddisconnected', (e) => {
+            console.log('🎮 GAMEPAD ÇIKARILDI');
+            if (e.gamepad.index === gamepadIndex) {
+                gamepadIndex = null;
+                gamepadConnected = false;
+            }
+        });
+        
+        function updateGamepad() {
+            if (!gamepadConnected || gamepadIndex === null) return;
+            
+            const gamepad = navigator.getGamepads()[gamepadIndex];
+            if (!gamepad) return;
+            
+            // Sol analog stick - hareket
+            const leftStickX = gamepad.axes[0]; // Sağa/Sola
+            const leftStickY = gamepad.axes[1]; // İleri/Geri
+            
+            // Sağ analog stick - kamera
+            const rightStickX = gamepad.axes[2];
+            const rightStickY = gamepad.axes[3];
+            
+            // Deadzone
+            const deadzone = 0.15;
+            
+            // Hareket
+            if (Math.abs(leftStickY) > deadzone) {
+                keys['ArrowUp'] = leftStickY < -deadzone;
+                keys['ArrowDown'] = leftStickY > deadzone;
+            } else {
+                keys['ArrowUp'] = false;
+                keys['ArrowDown'] = false;
+            }
+            
+            if (Math.abs(leftStickX) > deadzone) {
+                keys['ArrowLeft'] = leftStickX < -deadzone;
+                keys['ArrowRight'] = leftStickX > deadzone;
+            } else {
+                keys['ArrowLeft'] = false;
+                keys['ArrowRight'] = false;
+            }
+            
+            // Kamera kontrolü (sağ stick)
+            if (Math.abs(rightStickX) > deadzone) {
+                manualCameraAngle -= rightStickX * 0.05;
+            }
+            if (Math.abs(rightStickY) > deadzone) {
+                manualCameraPitch += rightStickY * 0.05;
+                manualCameraPitch = Math.max(-1.5, Math.min(1.5, manualCameraPitch));
+            }
+            
+            // Tuşlar
+            // X button (PS5: çarpı) - zıplama
+            if (gamepad.buttons[0] && gamepad.buttons[0].pressed) {
+                keys[' '] = true;
+            } else {
+                keys[' '] = false;
+            }
+            
+            // Triangle (PS5: üçgen) - yukarı
+            if (gamepad.buttons[3] && gamepad.buttons[3].pressed) {
+                keys['q'] = true;
+            } else {
+                keys['q'] = false;
+            }
+            
+            // Square (PS5: kare) - aşağı
+            if (gamepad.buttons[2] && gamepad.buttons[2].pressed) {
+                keys['e'] = true;
+            } else {
+                keys['e'] = false;
+            }
+            
+            // Options button (sağ üstteki) - sinematik mod
+            if (gamepad.buttons[9] && gamepad.buttons[9].pressed) {
+                if (!gamepad.buttons[9].wasPressed) {
+                    cinematicMode = !cinematicMode;
+                    if (cinematicMode) {
+                        cinematicTime = 0;
+                        console.log('🎬 SİNEMATİK MOD AÇIK! (Gamepad)');
+                    } else {
+                        console.log('🎮 MANUEL MOD AÇIK! (Gamepad)');
+                    }
+                }
+                gamepad.buttons[9].wasPressed = true;
+            } else {
+                gamepad.buttons[9].wasPressed = false;
+            }
+        }
+        
         const canvas = document.getElementById('canvas');
         const gl = canvas.getContext('webgl2', {
             alpha: false,
@@ -258,9 +408,9 @@
             }, 100);
             document.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
         }
-        let mouseDown = false;
-        let lastMouseX = 0;
-        let lastMouseY = 0;
+        let _0xb1c2 = false;
+        let _0xd3e4 = 0;
+        let _0xf5a6 = 0;
         let manualCameraAngle = 0;
         let manualCameraPitch = 0;
         window.addEventListener('keydown', (e) => {
@@ -280,692 +430,31 @@
         });
         window.addEventListener('mousedown', (e) => {
             if (!isMobile) {
-                mouseDown = true;
-                lastMouseX = e.clientX;
-                lastMouseY = e.clientY;
+                _0xb1c2 = true;
+                _0xd3e4 = e.clientX;
+                _0xf5a6 = e.clientY;
                 console.log('️ MOUSE DOWN - Kamera kontrolü aktif!');
             }
         });
         window.addEventListener('mouseup', () => {
             if (!isMobile) {
-                mouseDown = false;
+                _0xb1c2 = false;
                 console.log('️ MOUSE UP');
             }
         });
         window.addEventListener('mousemove', (e) => {
-            if (mouseDown && !isMobile) {
-                const deltaX = e.clientX - lastMouseX;
-                const deltaY = e.clientY - lastMouseY;
+            if (_0xb1c2 && !isMobile) {
+                const deltaX = e.clientX - _0xd3e4;
+                const deltaY = e.clientY - _0xf5a6;
                 manualCameraAngle -= deltaX * 0.005;
                 manualCameraPitch += deltaY * 0.005;
                 manualCameraPitch = Math.max(-1.5, Math.min(1.5, manualCameraPitch));
-                lastMouseX = e.clientX;
-                lastMouseY = e.clientY;
+                _0xd3e4 = e.clientX;
+                _0xf5a6 = e.clientY;
             }
         });
-        const vertexShaderSource = `
-attribute vec2 position;
-void main() {
-  gl_Position = vec4(position, 0.0, 1.0);
-}
-`;
-        const fragmentShaderSource = `
-precision highp float;
-uniform vec2 iResolution;
-uniform float iTime;
-uniform bool isDayTime;
-uniform vec3 uRabbitPos;
-uniform float uRabbitRot;
-uniform vec3 uCameraPos;
-uniform vec3 uCameraTarget;
-float rnd(vec2 p) {
-    return fract(sin(dot(p, vec2(13.234, 72.1849))) * 43251.1234);
-}
-float roundBox(vec3 p, vec3 b, float r) {
-    return length(max(abs(p) - b, 0.0)) - r;
-}
-mat2 rot(float a) {
-     float c = cos(a), s = sin(a);
-     return mat2(c, -s, s, c);
-}
-float tri(float x) {
-    return abs(fract(x) - 0.5);
-}
-vec3 tri3(vec3 p) {
-   return abs(fract(p.zzy + abs(fract(p.yxx) - 0.5)) - 0.5);
-}
-float triNoise3D(vec3 p, float spd) {
-    float z = 1.4;
-    float rz = 0.0;
-    vec3 bp = p;
-    for (float i = 0.0; i <= 3.0; i += 1.0) {
-        vec3 dg = tri3(bp * 2.0);
-        p += (dg + iTime * 0.3 * spd);
-        bp *= 1.8;
-        z *= 1.5;
-        p *= 1.2;
-        rz += tri(p.z + tri(p.x + tri(p.y))) / z;
-        bp += 0.14;
-    }
-    return rz;
-}
-float sphere2(vec2 p, float r) {
-    return length(p) - r;
-}
-float ellipse2(vec2 p, vec2 r) {
-    float k0 = length(p / r);
-    float k1 = length(p / (r * r));
-    return k0 * (k0 - 1.0) / k1;
-}
-float blend(float d1, float d2, float k) {
-    float h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
-    return mix(d2, d1, h) - k * h * (1.0 - h);
-}
-float roundCone(vec3 p, float r1, float r2, float h) {
-    vec2 q = vec2(length(p.xz), p.y);
-    float b = (r1 - r2) / h;
-    float a = sqrt(1.0 - b * b);
-    float k = dot(q, vec2(-b, a));
-    if(k < 0.0) return length(q) - r1;
-    if(k > a * h) return length(q - vec2(0.0, h)) - r2;
-    return dot(q, vec2(a, b)) - r1;
-}
-float dSphere(vec3 p, float r) { return length(p) - r; }
-float dTorus2(vec3 p, vec2 t) { vec2 q = vec2(length(p.xz) - t.x, p.y); return length(q) - t.y; }
-float yCylinder(vec3 p, vec2 h) { return max(length(p.xz)-h.x, abs(p.y)-h.y); }
-float capsuleY(vec3 p, float r, float h) { p.y -= clamp(p.y, 0.0, h); return length(p) - r; }
-float smin(float a, float b, float k) { float h = clamp(0.5+0.5*(b-a)/k, 0.0, 1.0); return mix(b, a, h) - k*h*(1.0-h); }
-float sphereDist(vec3 pos, float radius) {
-    return length(pos) - radius;
-}
-float torusShape(vec3 pos, vec2 params) {
-    vec2 q = vec2(length(pos.xz) - params.x, pos.y);
-    return length(q) - params.y;
-}
-float vertCylinder(vec3 pos, vec2 dim) {
-    return max(length(pos.xz) - dim.x, abs(pos.y) - dim.y);
-}
-float capY(vec3 pos, float rad, float height) {
-    pos.y -= clamp(pos.y, 0.0, height);
-    return length(pos) - rad;
-}
-float smoothMin(float a, float b, float blend) {
-    float h = clamp(0.5 + 0.5 * (b - a) / blend, 0.0, 1.0);
-    return mix(b, a, h) - blend * h * (1.0 - h);
-}
-float horseBase(vec3 coord, float scale) {
-    float result = 1.0;
-    float blendFactor = scale * 0.3;
-    float q1 = scale * 0.25, q2 = scale * 0.4, q3 = scale * 0.5;
-    result = min(result, sphereDist(coord, scale));
-    result = max(result, abs(coord.y) - 0.1);
-    result = smoothMin(result, torusShape(coord + vec3(0., -q1, 0.), vec2(q3, q1)), blendFactor);
-    result = smoothMin(result, vertCylinder(coord + vec3(0., -(scale + q1), 0.), vec2(q2, scale)), blendFactor);
-    return result;
-}
-float horseModel(vec3 position) {
-    position = position * 0.7;
-    position.y += 2.5;
-    float cosVal = cos(4.7), sinVal = sin(4.7);
-    position.xz = vec2(cosVal * position.x - sinVal * position.z, sinVal * position.x + cosVal * position.z);
-    float baseScale = 1.0;
-    float blendK = baseScale * 0.3;
-    float s1 = baseScale * 0.10, s2 = baseScale * 0.25, s3 = baseScale * 0.4;
-    float s4 = baseScale * 0.5, s5 = baseScale * 0.6, s6 = baseScale * 0.7, s7 = baseScale * 0.8;
-    float finalDist = horseBase(position, baseScale);
-    finalDist = smoothMin(finalDist, sphereDist(position + vec3(0., -(baseScale + s1), -s2), s4), blendK);
-    vec3 headPos = position;
-    float headDist = sphereDist(headPos + vec3(0., -(baseScale * 2.0 + s6), 0.), s5);
-    headPos += vec3(0., -(baseScale * 2.0 + s5), 0.);
-    float angle = 1.85;
-    float cosA = cos(angle), sinA = sin(angle);
-    headPos.zy = vec2(cosA * headPos.z - sinA * headPos.y, sinA * headPos.z + cosA * headPos.y);
-    headDist = smoothMin(headDist, capY(headPos + vec3(0., -(s1 * 3.0), s1), s3, baseScale), s6);
-    finalDist = smoothMin(finalDist, headDist, blendK);
-    vec3 earPos = position;
-    earPos.x = abs(earPos.x);
-    float earShape = torusShape(earPos + vec3(-s3, -(baseScale * 3.0 + s2), 0.), vec2(-s5, s7));
-    earShape = max(earShape, -torusShape(earPos + vec3(-s5, -(baseScale * 3.0 + s2), 0.), vec2(-s5, s7)));
-    finalDist = min(finalDist, earShape);
-    vec3 manePos = position + vec3(0., -(baseScale * 2.0 + s2), s3);
-    vec3 maneOffset = manePos + vec3(0.0, cos(manePos.y * s7) * (-s4), sin(manePos.y * (baseScale * 2.0 + s7) + s4) * blendK);
-    float maneWidth = s1 * pow(sin(maneOffset.y * (baseScale * 30.0)), 2.0) + s1;
-    finalDist = smoothMin(finalDist, vertCylinder(maneOffset, vec2(maneWidth, baseScale)), s2);
-    maneWidth = s1 * pow(sin(manePos.y * (baseScale * 30.0)), 2.0) + s1;
-    finalDist = smoothMin(finalDist, vertCylinder(manePos + vec3(0., s7, s1), vec2(maneWidth, s7)), s2);
-    return finalDist;
-}
-float pawn(vec3 pos) {
-    float radialDist = length(pos.xz);
-    vec2 crossSection = vec2(radialDist, pos.y);
-    vec2 topOffset = crossSection - vec2(0.0, 1.1);
-    float topBall = length(topOffset) - 0.98;
-    vec2 neckCenter = vec2(0.0, -0.12);
-    vec2 neckRadii = vec2(0.97, 0.31);
-    float neckRing = ellipse2(crossSection - neckCenter, neckRadii);
-    float waistUpper = ellipse2(crossSection - vec2(0.0, 0.05), vec2(0.48, 0.82));
-    float waistLower = ellipse2(crossSection - vec2(0.0, -2.25), vec2(0.87, 0.31));
-    float waistMiddle = ellipse2(crossSection - vec2(0.0, -2.05), vec2(1.37, 0.31));
-    float baseLower = ellipse2(crossSection - vec2(0.0, -2.25), vec2(1.17, 0.61));
-    float baseMiddle = ellipse2(crossSection - vec2(0.0, -3.25), vec2(1.97, 0.61));
-    float baseBottom = ellipse2(crossSection - vec2(0.0, -3.75), vec2(2.07, 0.51));
-    float headSection = blend(topBall, neckRing, 0.3);
-    float waistBlend = blend(waistUpper, waistLower, 3.0);
-    float baseBlend = blend(baseLower, baseMiddle, 1.2);
-    float completeBase = blend(baseBlend, baseBottom, 0.3);
-    float result = min(headSection, waistBlend);
-    result = min(result, waistMiddle);
-    result = min(result, completeBase);
-    return result;
-}
-float base1(vec3 pos) {
-    vec2 profile = vec2(length(pos.xz), pos.y);
-    float neckPart = ellipse2(profile - vec2(0.0, -0.98), vec2(1.28, 1.02));
-    float ring1 = ellipse2(profile - vec2(0.0, -2.28), vec2(1.57, 0.61));
-    float ring2 = ellipse2(profile - vec2(0.0, -3.28), vec2(2.47, 0.61));
-    float ring3 = ellipse2(profile - vec2(0.0, -3.78), vec2(2.57, 0.51));
-    float band = ellipse2(profile - vec2(0.0, -2.08), vec2(1.77, 0.31));
-    float merged = blend(ring1, ring2, 1.0);
-    merged = blend(merged, ring3, 0.3);
-    merged = min(merged, band);
-    return merged;
-}
-float base2(vec3 pos) {
-    float pedestal = base1(pos);
-    vec2 sideView = vec2(length(pos.xz), pos.y);
-    float mainColumn = ellipse2(sideView - vec2(0.0, -1.38), vec2(1.13, 2.72));
-    float crown1 = ellipse2(sideView - vec2(0.0, 2.02), vec2(1.58, 0.31));
-    float crown2 = ellipse2(sideView - vec2(0.0, 2.22), vec2(1.48, 0.21));
-    float crown3 = ellipse2(sideView - vec2(0.0, 2.82), vec2(1.18, 0.21));
-    float topSphere = ellipse2(sideView - vec2(0.0, 5.92), vec2(1.88, 2.82));
-    float cutVolume = roundBox(pos - vec3(0.0, 7.22, 0.0), vec3(2.98, 2.52, 2.98), 0.0);
-    pedestal = blend(pedestal, mainColumn, 1.8);
-    pedestal = blend(pedestal, crown1, 1.8);
-    pedestal = min(pedestal, crown2);
-    pedestal = blend(pedestal, crown3, 0.55);
-    pedestal = blend(pedestal, topSphere, 1.1);
-    return max(pedestal, -cutVolume);
-}
-float rook(vec3 position) {
-    float foundation = base1(position);
-    vec2 silhouette = vec2(length(position.xz), position.y);
-    vec2 neckPos = silhouette - vec2(0.0, -0.98);
-    float towerNeck = ellipse2(neckPos, vec2(1.18, 1.32));
-    vec2 rimPos = silhouette - vec2(0.0, 0.52);
-    float crownRim = ellipse2(rimPos, vec2(1.68, 0.21));
-    float tower = blend(foundation, towerNeck, 1.0);
-    tower = blend(tower, crownRim, 1.4);
-    vec3 merlonOffset = vec3(silhouette.x, position.y, 0.0) - vec3(1.38, 1.12, 0.0);
-    float singleMerlon = roundBox(merlonOffset, vec3(0.21, 0.61, 1.98), 0.0);
-    tower = min(tower, singleMerlon);
-    vec3 rotatedPos = position;
-    float rotationAngle = 2.094395;
-    float cosA = cos(rotationAngle);
-    float sinA = sin(rotationAngle);
-    mat2 rotationMatrix = mat2(cosA, -sinA, sinA, cosA);
-    for (int slot = 0; slot < 3; slot++) {
-        vec3 gapBox = rotatedPos - vec3(0.0, 1.42, 0.0);
-        float gap = roundBox(gapBox, vec3(1.98, 0.61, 0.21), 0.0);
-        tower = max(tower, -gap);
-        rotatedPos.xz = rotationMatrix * rotatedPos.xz;
-    }
-    return tower;
-}
-float knight(vec3 coord) {
-    float platform = base1(coord);
-    coord.x = abs(coord.x);
-    vec3 bodyCenter = coord - vec3(0.0, 2.02, 0.0);
-    float outerBound = length(bodyCenter) - 3.97;
-    vec3 scaledBody = bodyCenter / vec3(1.98, 5.02, 1.78);
-    float innerBound = (length(scaledBody) - 1.0) * 1.78;
-    vec3 neckBase = coord - vec3(-0.28, 1.02, 0.52);
-    float neckTrunk = roundCone(neckBase, 0.78, 2.22, 2.18);
-    vec3 cutScale = (coord - vec3(2.18, 0.0, 0.0)) / vec3(1.48, 2.52, 4.98);
-    float sideCut = (length(cutScale) - 1.0) * 1.48;
-    float tiltAngle = 1.32;
-    float cosT = cos(tiltAngle);
-    float sinT = sin(tiltAngle);
-    mat3 tiltMatrix = mat3(1.0, 0.0, 0.0, 0.0, cosT, -sinT, 0.0, sinT, cosT);
-    vec3 headBase = coord - vec3(0.0, 2.52, 0.52);
-    float headCone = roundCone(tiltMatrix * headBase, 1.18, 0.58, 1.4);
-    for(int i = 0; i < 8; i++) {
-        float offset = float(i) * 0.15;
-        vec3 manePos = coord - vec3(0.0, 2.5 - offset, -0.3);
-        float maneGroove = length(manePos.xz) - 0.05;
-        headCone = max(headCone, -maneGroove);
-    }
-    float planeCut = 0.52 - coord.x;
-    vec3 rearCutCenter = coord - vec3(2.08, 2.82, -1.88);
-    float rearCut = length(rearCutCenter) - 1.98;
-    vec3 shoulderScale = (coord - vec3(0.0, 2.22, 0.0)) / vec3(1.98, 1.28, 2.28);
-    float shoulderMass = (length(shoulderScale) - 1.0) * 1.28;
-    float neckAssembly = max(neckTrunk, -sideCut);
-    float headAssembly = headCone;
-    headAssembly = max(headAssembly, -planeCut);
-    headAssembly = max(headAssembly, -rearCut);
-    headAssembly = max(headAssembly, shoulderMass);
-    neckAssembly = blend(neckAssembly, headAssembly, 0.72);
-    float horseBody = min(platform, max(max(neckAssembly, outerBound), innerBound));
-    return horseBody;
-}
-float bishop(vec3 loc) {
-    float stand = base1(loc);
-    vec2 outline = vec2(length(loc.xz), loc.y);
-    vec2 stemCenter = outline - vec2(0.0, -1.38);
-    float bodyStem = ellipse2(stemCenter, vec2(0.98, 1.62));
-    float capRing1 = ellipse2(outline - vec2(0.0, 0.72), vec2(1.58, 0.31));
-    float capRing2 = ellipse2(outline - vec2(0.0, 0.92), vec2(1.48, 0.21));
-    float capRing3 = ellipse2(outline - vec2(0.0, 1.52), vec2(1.18, 0.21));
-    vec2 mitreCenter = outline - vec2(0.0, 2.62);
-    float mitre = ellipse2(mitreCenter, vec2(1.28, 1.52));
-    vec2 tipCenter = outline - vec2(0.0, 4.22);
-    float tip = ellipse2(tipCenter, vec2(0.38, 0.38));
-    float slitAngle = -0.42;
-    float cosS = cos(slitAngle);
-    float sinS = sin(slitAngle);
-    mat2 slitRotation = mat2(cosS, -sinS, sinS, cosS);
-    vec3 slitPos = loc - vec3(0.78, 3.72, 0.0);
-    vec2 rotatedSlit = slitRotation * slitPos.xy;
-    vec3 slitBox = vec3(rotatedSlit, slitPos.z);
-    float slit = roundBox(slitBox, vec3(0.21, 0.98, 1.98), 0.0);
-    float bishopShape = blend(stand, bodyStem, 0.92);
-    bishopShape = blend(bishopShape, capRing1, 1.52);
-    bishopShape = min(bishopShape, capRing2);
-    bishopShape = blend(bishopShape, capRing3, 0.57);
-    bishopShape = min(bishopShape, mitre);
-    bishopShape = min(bishopShape, tip);
-    bishopShape = max(bishopShape, -slit);
-    return bishopShape;
-}
-float king(vec3 pt) {
-    float base = base2(pt);
-    vec2 profile = vec2(length(pt.xz), pt.y);
-    vec2 diskCenter = profile - vec2(0.0, 4.62);
-    float crownDisk = ellipse2(diskCenter, vec2(1.78, 0.42));
-    vec3 vBeamPos = pt - vec3(0.0, 5.22, 0.0);
-    float verticalBeam = roundBox(vBeamPos, vec3(0.28, 1.52, 0.23), 0.0);
-    vec3 hBeamPos = pt - vec3(0.0, 5.82, 0.0);
-    float horizontalBeam = roundBox(hBeamPos, vec3(0.98, 0.28, 0.23), 0.0);
-    float kingPiece = min(base, crownDisk);
-    kingPiece = min(kingPiece, verticalBeam);
-    kingPiece = min(kingPiece, horizontalBeam);
-    return kingPiece;
-}
-float queen(vec3 point) {
-    float pedestal = base2(point);
-    vec2 crossSec = vec2(length(point.xz), point.y);
-    vec2 crownCenter = crossSec - vec2(0.0, 4.02);
-    float crownBody = ellipse2(crownCenter, vec2(1.28, 1.52));
-    vec2 cutCenter = crossSec - vec2(0.0, 2.02);
-    float crownCut = roundBox(vec3(cutCenter, 0.0), vec3(2.98, 2.02, 2.98), 0.0);
-    vec2 orbCenter = crossSec - vec2(0.0, 5.62);
-    float topOrb = ellipse2(orbCenter, vec2(0.48, 0.48));
-    vec3 absPoint = vec3(abs(point.x), point.y, abs(point.z));
-    if (absPoint.x > absPoint.z) {
-        absPoint = absPoint.zyx;
-    }
-    vec3 notchCenter = absPoint - vec3(0.98, 4.72, 2.18);
-    float cornerNotch = length(notchCenter) - 1.08;
-    float queenShape = min(pedestal, max(crownBody, -crownCut));
-    queenShape = min(queenShape, topOrb);
-    queenShape = max(queenShape, -cornerNotch);
-    return queenShape;
-}
-float torusHorizontal(vec3 position, float majorRad, float minorRad) {
-    vec2 radialComp = vec2(length(position.xy) - majorRad, position.z);
-    return length(radialComp) - minorRad;
-}
-float torusVertical(vec3 position, float majorRad, float minorRad) {
-    vec2 radialComp = vec2(length(position.yz) - majorRad, position.x);
-    return length(radialComp) - minorRad;
-}
-float clockSphere(vec3 position) {
-    return length(position) - 1.18;
-}
-float getClockPattern(vec3 p) {
-    vec3 np = normalize(p);
-    float a = (atan(np.x, np.z) + 3.14159) / 6.28318;
-    float l = length(vec2(np.x, np.z));
-    float ll = a * 2.0 + pow(l, 0.3) * 7.0;
-    ll = fract(ll);
-    float ra = a * 24.0 - iTime;
-    float bgline = step(0.02, abs(ll - 0.65) - 0.35);
-    float num = step(0.3, fract(ra) * 2.0 - 0.5);
-    return mix(0.3, 0.9, bgline * num);
-}
-float GetDistanceChain(vec3 vPos) {
-    vec3 vChainDomain = vPos;
-    vChainDomain.y = fract(vChainDomain.y + 0.5) - 0.5;
-    float fDistTorus1 = torusHorizontal(vChainDomain, 0.55, 0.15);
-    vChainDomain.y = fract(vPos.y + 1.0) - 0.5;
-    float fDistTorus2 = torusVertical(vChainDomain, 0.55, 0.15);
-    return min(fDistTorus1, fDistTorus2);
-}
-float chessField(vec3 p) {
-    vec3 id = floor(p / 10.0);
-    vec3 localP = mod(p, 10.0) - 5.0;
-    float randVal = rnd(id.xz + vec2(id.y * 10.0));
-    bool isGroundLevel = (id.y == 0.0);
-    bool isUnderground = (id.y < 0.0);
-    float pieceType = fract(randVal * 6.0);
-    vec3 objWorldPos = vec3(id.x * 10.0, id.y * 10.0, id.z * 10.0);
-    float distToCamera = length(objWorldPos - uCameraPos);
-    bool isTooFar = distToCamera > 80.0;
-    bool allowAnimation = !isTooFar && !isUnderground;
-    float animTime = allowAnimation ? iTime * (randVal * 2.0 - 1.0) * 0.8 : 0.0;
-    float rotAngle = allowAnimation ? iTime * (randVal * 2.0 - 1.0) * 0.8 : 0.0;
-    float piece;
-    if (pieceType < 0.09) {
-        vec3 chainP = localP;
-        if (isGroundLevel && allowAnimation) {
-            chainP.y += sin(iTime) + 3.5;
-        } else if (isGroundLevel) {
-            chainP.y += 3.5;
-        }
-        piece = GetDistanceChain(chainP);
-    } else if (pieceType < 0.24) {
-        vec3 clockP = localP;
-        if (allowAnimation) {
-            float moveSpeed = (randVal * 2.0 - 1.0) * 0.3;
-            float moveTime = iTime * moveSpeed;
-            float orbitRadius = 1.5;
-            float orbitAngle = moveTime + randVal * 6.28;
-            clockP.x += cos(orbitAngle) * orbitRadius;
-            clockP.z += sin(orbitAngle) * orbitRadius;
-            float verticalSpeed = (randVal * 2.0 - 1.0) * 0.8;
-            float verticalPhase = randVal * 6.28;
-            float verticalOffset = sin(iTime * verticalSpeed + verticalPhase) * 1.2;
-            clockP.y += 1.2 + verticalOffset;
-            float rotSpeed = (randVal * 2.0 - 1.0) * 0.5;
-            float angle = iTime * rotSpeed;
-            float c = cos(angle), s = sin(angle);
-            clockP.xz = vec2(c * clockP.x - s * clockP.z, s * clockP.x + c * clockP.z);
-        } else {
-            clockP.y += 1.2;
-        }
-        piece = clockSphere(clockP);
-    } else if (pieceType < 0.35) {
-        float tilt = sin(animTime * 2.0) * 0.2;
-        float c1 = cos(tilt), s1 = sin(tilt);
-        vec3 p = localP;
-        p.xy = vec2(c1 * localP.x - s1 * localP.y, s1 * localP.x + c1 * localP.y);
-        float c = cos(-rotAngle * 0.5), s = sin(-rotAngle * 0.5);
-        p.xz = vec2(c * p.x - s * p.z, s * p.x + c * p.z);
-        piece = pawn(p);
-    } else if (pieceType < 0.38) {
-        float c = cos(-rotAngle), s = sin(-rotAngle);
-        vec3 p = localP;
-        p.xz = vec2(c * localP.x - s * localP.z, s * localP.x + c * localP.z);
-        p.z += sin(animTime * 2.5) * 0.4;
-        piece = rook(p);
-    } else if (pieceType < 0.54) {
-        float c = cos(-rotAngle * 1.5), s = sin(-rotAngle * 1.5);
-        vec3 p = localP;
-        p.xz = vec2(c * localP.x - s * localP.z, s * localP.x + c * localP.z);
-        p.z += sin(animTime * 3.0) * 0.3;
-        if (isGroundLevel && allowAnimation) {
-            piece = horseModel(p);
-        } else {
-            piece = knight(p);
-        }
-    } else if (pieceType < 0.69) {
-        float c = cos(-rotAngle * 0.8), s = sin(-rotAngle * 0.8);
-        vec3 p = localP;
-        p.xz = vec2(c * localP.x - s * localP.z, s * localP.x + c * localP.z);
-        p.z += sin(animTime * 2.0) * 0.35;
-        piece = bishop(p);
-    } else if (pieceType < 0.85) {
-        float c = cos(-rotAngle * 1.2), s = sin(-rotAngle * 1.2);
-        vec3 p = localP;
-        p.xz = vec2(c * localP.x - s * localP.z, s * localP.x + c * localP.z);
-        float scale = 1.0 + sin(animTime * 2.5) * 0.05;
-        p *= scale;
-        piece = queen(p) / scale;
-    } else {
-        float c = cos(-rotAngle * 2.0), s = sin(-rotAngle * 2.0);
-        vec3 p = localP;
-        p.xz = vec2(c * localP.x - s * localP.z, s * localP.x + c * localP.z);
-        piece = king(p);
-    }
-    return piece;
-}
-float tileShape(vec3 position) {
-     vec2 tileLocal = mod(position.xz, 1.0) - vec2(0.5);
-     vec3 boxPos = vec3(tileLocal.x, position.y, tileLocal.y);
-     return roundBox(boxPos, vec3(0.468), 0.021);
-}
-float sceneDistance(vec3 position) {
-     float floorTiles = tileShape(position);
-     float chessPieces = chessField(position);
-     return min(floorTiles, chessPieces);
-}
-float trace(vec3 ro, vec3 rd) {
-    float t = 0.0;
-    for(int i = 0; i < 120; i++) {
-        if (i > 80 && t > 80.0) break;
-        vec3 p = ro + rd * t;
-        float dist = sceneDistance(p);
-        float distFromCamera = length(p - ro);
-        vec3 cellId = floor(p / 10.0);
-        bool isFloating = (cellId.y > 0.0);
-        float threshold;
-        if (distFromCamera < 15.0) {
-            threshold = isFloating ? 0.002 : 0.0005;
-        } else if (distFromCamera < 30.0) {
-            threshold = isFloating ? 0.006 : 0.002;
-        } else if (distFromCamera < 60.0) {
-            threshold = isFloating ? 0.012 : 0.005;
-        } else {
-            threshold = 0.015;
-        }
-        if(dist < threshold || t > 120.0) break;
-        float stepSize;
-        if (distFromCamera < 20.0) {
-            stepSize = 0.5;
-        } else if (distFromCamera < 50.0) {
-            stepSize = 0.65;
-        } else {
-            stepSize = 0.85;
-        }
-        t += dist * stepSize;
-    }
-    return t;
-}
-vec3 normal(vec3 sp) {
-    float distFromCamera = length(sp - uCameraPos);
-    vec3 id = floor(sp / 10.0);
-    bool isFloating = (id.y > 0.0);
-    float epsilon;
-    if (isFloating) {
-        epsilon = 0.004;
-    } else {
-        if (distFromCamera < 20.0) {
-            epsilon = 0.0003;
-        } else if (distFromCamera < 40.0) {
-            epsilon = 0.0015;
-        } else {
-            epsilon = 0.003;
-        }
-    }
-    vec2 e = vec2(epsilon, 0.0);
-    return normalize(vec3(
-        sceneDistance(sp + e.xyy) - sceneDistance(sp - e.xyy),
-        sceneDistance(sp + e.yxy) - sceneDistance(sp - e.yxy),
-        sceneDistance(sp + e.yyx) - sceneDistance(sp - e.yyx)
-    ));
-}
-float calculateAO(vec3 pos, vec3 nor) {
-    float sca = 2.0, occ = 0.0;
-    float distFromCamera = length(pos - uCameraPos);
-    float stepBase = distFromCamera < 20.0 ? 0.03 : 0.06;
-    for(int i = 0; i < 3; i++) {
-        float hr = stepBase + float(i) * 0.15;
-        float dd = sceneDistance(nor * hr + pos);
-        occ += (hr - dd) * sca;
-        sca *= 0.7;
-    }
-    float aoResult = clamp(1.0 - occ * 0.8, 0.0, 1.0);
-    return max(aoResult, 0.6);
-}
-vec3 lighting(vec3 sp, vec3 sn, vec3 lp, vec3 rd) {
-    float distFromCamera = length(sp - uCameraPos);
-    vec3 lv = lp - sp;
-    float ldist = max(length(lv), 0.001);
-    vec3 ldir = lv / ldist;
-    float atte = 1.0 / (1.0 + 0.002 * ldist * ldist);
-    float diff = max(dot(ldir, sn), 0.0);
-    vec3 id = floor(sp / 10.0);
-    vec3 localP = mod(sp, 10.0) - 5.0;
-    float randVal = rnd(id.xz + vec2(id.y * 10.0));
-    float pieceType = fract(randVal * 6.0);
-    bool isClockSphere = (pieceType < 0.15);
-    float specPower = isClockSphere ? 120.0 : 10.0;
-    float spec = pow(max(dot(reflect(-ldir, sn), -rd), 0.0), specPower) * (isClockSphere ? 1.0 : 1.0);
-    float ao = 1.0;
-    if (distFromCamera < 18.0) { // 20'den 18'e
-        ao = calculateAO(sp, sn);
-    }
-    vec2 gridCoord = floor(sp.xz);
-    float patternValue = mod(gridCoord.x + gridCoord.y, 2.0);
-    vec3 darkGray = vec3(0.05);
-    vec3 lightGray = vec3(0.35);
-    vec3 tileColor = mix(darkGray, lightGray, patternValue);
-    bool isChainCell = (pieceType >= 0.15 && pieceType < 0.24);
-    float chessPiecePattern = mod(floor(sp.x / 10.0) + floor(sp.z / 10.0), 2.0);
-    vec3 dayLightPiece = vec3(0.3, 0.22, 0.08);
-    vec3 dayDarkPiece = vec3(0.02, 0.02, 0.01);
-    vec3 nightLightPiece = vec3(2.2, 0.65, 0.15);
-    vec3 nightDarkPiece = vec3(0.15, 0.55, 1.8);
-    vec3 lightPieceColor = isDayTime ? dayLightPiece : nightLightPiece;
-    vec3 darkPieceColor = isDayTime ? dayDarkPiece : nightDarkPiece;
-    vec3 pieceColor = mix(darkPieceColor, lightPieceColor, chessPiecePattern);
-    if (isClockSphere) {
-        vec3 clockP = localP;
-        clockP.y -= 1.2;
-        float distToCam = length(sp - uCameraPos);
-        if (distToCam < 80.0) { // Sadece çok uzakta kapat
-            float rotSpeed = (randVal * 2.0 - 1.0) * 1.0;
-            float angle = iTime * rotSpeed;
-            float c = cos(angle), s = sin(angle);
-            clockP.xz = vec2(c * clockP.x - s * clockP.z, s * clockP.x + c * clockP.z);
-        }
-        float pattern = getClockPattern(clockP);
-        pieceColor = vec3(0.05);
-    }
-    if (isChainCell && !isClockSphere) {
-        pieceColor = vec3(0.05);
-    }
-    float isPiece = step(abs(chessField(sp)), 0.5);
-    vec3 albedo = mix(tileColor, pieceColor, isPiece);
-    bool isOrangePiece = (isPiece > 0.5 && chessPiecePattern > 0.5 && !isClockSphere && !isChainCell);
-    vec3 specColor;
-    if (isChainCell || isClockSphere) {
-        specColor = vec3(0.3);
-    } else if (isDayTime) {
-        specColor = vec3(0.9, 0.5, 0.2);
-    } else {
-        if (isOrangePiece) {
-            specColor = vec3(2.5, 0.8, 0.3);
-        } else {
-            specColor = vec3(0.4, 1.2, 2.8);
-        }
-    }
-    vec3 color = (diff * albedo + spec * specColor) * atte;
-    return color * ao;
-}
-vec2 path(float z) {
-    float s = sin(z / 36.0) * cos(z / 18.0);
-    return vec2(s * 16.0, 0.0);
-}
-void main() {
-    vec2 fragCoord = gl_FragCoord.xy;
-    vec2 uv = (fragCoord - iResolution.xy * 0.5) / iResolution.y;
-    uv = normalize(uv) * tan(asin(length(uv) * 1.0));
-    vec3 ro = uCameraPos;
-    vec3 lk = uCameraTarget;
-    vec3 lp = ro + vec3(0.0, 5.0, 0.0);
-    float FOV = 1.57;
-    vec3 fwd = normalize(lk - ro);
-    vec3 rgt = normalize(vec3(fwd.z, 0.0, -fwd.x));
-    vec3 up = cross(fwd, rgt);
-    vec3 rd = normalize(fwd + FOV * uv.x * rgt + FOV * uv.y * up);
-    float t = trace(ro, rd);
-    float far = smoothstep(0.0, 1.0, t / 120.0);
-    vec3 sp = ro + rd * t;
-    vec3 sn = normal(sp);
-    vec3 color = lighting(sp, sn, lp, rd);
-    float distFromCamera = length(sp - ro);
-    vec3 refRay = reflect(rd, sn);
-    float bias = distFromCamera < 20.0 ? 0.03 : 0.06;
-    float t2 = trace(sp + sn * bias, refRay);
-    vec3 rsp = sp + sn * bias + refRay * t2;
-    vec3 rsn = normal(rsp);
-    vec3 refColor = lighting(rsp, rsn, lp, refRay);
-    float refStrength;
-    if (distFromCamera < 20.0) {
-        refStrength = 0.6;
-    } else if (distFromCamera < 35.0) {
-        refStrength = 0.5;
-    } else {
-        refStrength = 0.4;
-    }
-    color += refColor * refStrength;
-    vec3 topColor, upperColor, midColor, hotPinkColor, deepPinkColor, darkPinkColor, veryDarkColor, nearBlackColor, blackColor;
-    if (isDayTime) {
-        topColor = vec3(1.0, 0.6, 0.25);
-        upperColor = vec3(1.2, 0.4, 0.3);
-        midColor = vec3(1.1, 0.45, 0.28);
-        hotPinkColor = vec3(0.8, 0.35, 0.25);
-        deepPinkColor = vec3(0.6, 0.28, 0.20);
-        darkPinkColor = vec3(0.45, 0.22, 0.15);
-        veryDarkColor = vec3(0.35, 0.18, 0.12);
-        nearBlackColor = vec3(0.25, 0.15, 0.10);
-        blackColor = vec3(0.20, 0.12, 0.08);
-    } else {
-        topColor = vec3(2.2, 0.9, 1.4);
-        upperColor = vec3(2.4, 0.7, 1.2);
-        midColor = vec3(2.5, 0.55, 1.0);
-        hotPinkColor = vec3(2.2, 0.4, 0.85);
-        deepPinkColor = vec3(1.6, 0.25, 0.6);
-        darkPinkColor = vec3(0.8, 0.12, 0.35);
-        veryDarkColor = vec3(0.2, 0.03, 0.1);
-        nearBlackColor = vec3(0.05, 0.0, 0.02);
-        blackColor = vec3(0.0, 0.0, 0.0);
-    }
-    float y = rd.y;
-    vec3 skyGradient;
-    if (y > 0.75) {
-        float blend = smoothstep(0.75, 1.0, y);
-        skyGradient = mix(upperColor, topColor, blend);
-    } else if (y > 0.55) {
-        float blend = smoothstep(0.55, 0.75, y);
-        skyGradient = mix(midColor, upperColor, blend);
-    } else if (y > 0.4) {
-        float blend = smoothstep(0.4, 0.55, y);
-        skyGradient = mix(hotPinkColor, midColor, blend);
-    } else if (y > 0.25) {
-        float blend = smoothstep(0.25, 0.4, y);
-        skyGradient = mix(deepPinkColor, hotPinkColor, blend);
-    } else if (y > 0.1) {
-        float blend = smoothstep(0.1, 0.25, y);
-        skyGradient = mix(darkPinkColor, deepPinkColor, blend);
-    } else if (y > -0.05) {
-        float blend = smoothstep(-0.05, 0.1, y);
-        skyGradient = mix(veryDarkColor, darkPinkColor, blend);
-    } else if (y > -0.2) {
-        float blend = smoothstep(-0.2, -0.05, y);
-        skyGradient = mix(nearBlackColor, veryDarkColor, blend);
-    } else {
-        float blend = smoothstep(-0.4, -0.2, y);
-        skyGradient = mix(blackColor, nearBlackColor, blend);
-    }
-    vec3 sky = skyGradient * (isDayTime ? 3.5 : 4.5) / 8.0;
-    color = mix(color, sky, far);
-    float vig = 1.0 - smoothstep(1.0, 3.5, length(uv));
-    color *= mix(0.8, 1.0, vig);
-    gl_FragColor = vec4(color, 1.0);
-}
-`;
+        const vertexShaderSource = atob("YXR0cmlidXRlIHZlYzIgcG9zaXRpb247CnZvaWQgbWFpbigpIHsKICBnbF9Qb3NpdGlvbiA9IHZlYzQocG9zaXRpb24sIDAuMCwgMS4wKTsKfQo=");
+        const fragmentShaderSource = atob("cHJlY2lzaW9uIGhpZ2hwIGZsb2F0Owp1bmlmb3JtIHZlYzIgaVJlc29sdXRpb247CnVuaWZvcm0gZmxvYXQgaVRpbWU7CnVuaWZvcm0gYm9vbCBpc0RheVRpbWU7CnVuaWZvcm0gdmVjMyB1UmFiYml0UG9zOwp1bmlmb3JtIGZsb2F0IHVSYWJiaXRSb3Q7CnVuaWZvcm0gdmVjMyB1Q2FtZXJhUG9zOwp1bmlmb3JtIHZlYzMgdUNhbWVyYVRhcmdldDsKZmxvYXQgcm5kKHZlYzIgcCkgewogICAgcmV0dXJuIGZyYWN0KHNpbihkb3QocCwgdmVjMigxMy4yMzQsIDcyLjE4NDkpKSkgKiA0MzI1MS4xMjM0KTsKfQpmbG9hdCByb3VuZEJveCh2ZWMzIHAsIHZlYzMgYiwgZmxvYXQgcikgewogICAgcmV0dXJuIGxlbmd0aChtYXgoYWJzKHApIC0gYiwgMC4wKSkgLSByOwp9Cm1hdDIgcm90KGZsb2F0IGEpIHsKICAgICBmbG9hdCBjID0gY29zKGEpLCBzID0gc2luKGEpOwogICAgIHJldHVybiBtYXQyKGMsIC1zLCBzLCBjKTsKfQpmbG9hdCB0cmkoZmxvYXQgeCkgewogICAgcmV0dXJuIGFicyhmcmFjdCh4KSAtIDAuNSk7Cn0KdmVjMyB0cmkzKHZlYzMgcCkgewogICByZXR1cm4gYWJzKGZyYWN0KHAuenp5ICsgYWJzKGZyYWN0KHAueXh4KSAtIDAuNSkpIC0gMC41KTsKfQpmbG9hdCB0cmlOb2lzZTNEKHZlYzMgcCwgZmxvYXQgc3BkKSB7CiAgICBmbG9hdCB6ID0gMS40OwogICAgZmxvYXQgcnogPSAwLjA7CiAgICB2ZWMzIGJwID0gcDsKICAgIGZvciAoZmxvYXQgaSA9IDAuMDsgaSA8PSAzLjA7IGkgKz0gMS4wKSB7CiAgICAgICAgdmVjMyBkZyA9IHRyaTMoYnAgKiAyLjApOwogICAgICAgIHAgKz0gKGRnICsgaVRpbWUgKiAwLjMgKiBzcGQpOwogICAgICAgIGJwICo9IDEuODsKICAgICAgICB6ICo9IDEuNTsKICAgICAgICBwICo9IDEuMjsKICAgICAgICByeiArPSB0cmkocC56ICsgdHJpKHAueCArIHRyaShwLnkpKSkgLyB6OwogICAgICAgIGJwICs9IDAuMTQ7CiAgICB9CiAgICByZXR1cm4gcno7Cn0KZmxvYXQgc3BoZXJlMih2ZWMyIHAsIGZsb2F0IHIpIHsKICAgIHJldHVybiBsZW5ndGgocCkgLSByOwp9CmZsb2F0IGVsbGlwc2UyKHZlYzIgcCwgdmVjMiByKSB7CiAgICBmbG9hdCBrMCA9IGxlbmd0aChwIC8gcik7CiAgICBmbG9hdCBrMSA9IGxlbmd0aChwIC8gKHIgKiByKSk7CiAgICByZXR1cm4gazAgKiAoazAgLSAxLjApIC8gazE7Cn0KZmxvYXQgYmxlbmQoZmxvYXQgZDEsIGZsb2F0IGQyLCBmbG9hdCBrKSB7CiAgICBmbG9hdCBoID0gY2xhbXAoMC41ICsgMC41ICogKGQyIC0gZDEpIC8gaywgMC4wLCAxLjApOwogICAgcmV0dXJuIG1peChkMiwgZDEsIGgpIC0gayAqIGggKiAoMS4wIC0gaCk7Cn0KZmxvYXQgcm91bmRDb25lKHZlYzMgcCwgZmxvYXQgcjEsIGZsb2F0IHIyLCBmbG9hdCBoKSB7CiAgICB2ZWMyIHEgPSB2ZWMyKGxlbmd0aChwLnh6KSwgcC55KTsKICAgIGZsb2F0IGIgPSAocjEgLSByMikgLyBoOwogICAgZmxvYXQgYSA9IHNxcnQoMS4wIC0gYiAqIGIpOwogICAgZmxvYXQgayA9IGRvdChxLCB2ZWMyKC1iLCBhKSk7CiAgICBpZihrIDwgMC4wKSByZXR1cm4gbGVuZ3RoKHEpIC0gcjE7CiAgICBpZihrID4gYSAqIGgpIHJldHVybiBsZW5ndGgocSAtIHZlYzIoMC4wLCBoKSkgLSByMjsKICAgIHJldHVybiBkb3QocSwgdmVjMihhLCBiKSkgLSByMTsKfQpmbG9hdCBkU3BoZXJlKHZlYzMgcCwgZmxvYXQgcikgeyByZXR1cm4gbGVuZ3RoKHApIC0gcjsgfQpmbG9hdCBkVG9ydXMyKHZlYzMgcCwgdmVjMiB0KSB7IHZlYzIgcSA9IHZlYzIobGVuZ3RoKHAueHopIC0gdC54LCBwLnkpOyByZXR1cm4gbGVuZ3RoKHEpIC0gdC55OyB9CmZsb2F0IHlDeWxpbmRlcih2ZWMzIHAsIHZlYzIgaCkgeyByZXR1cm4gbWF4KGxlbmd0aChwLnh6KS1oLngsIGFicyhwLnkpLWgueSk7IH0KZmxvYXQgY2Fwc3VsZVkodmVjMyBwLCBmbG9hdCByLCBmbG9hdCBoKSB7IHAueSAtPSBjbGFtcChwLnksIDAuMCwgaCk7IHJldHVybiBsZW5ndGgocCkgLSByOyB9CmZsb2F0IHNtaW4oZmxvYXQgYSwgZmxvYXQgYiwgZmxvYXQgaykgeyBmbG9hdCBoID0gY2xhbXAoMC41KzAuNSooYi1hKS9rLCAwLjAsIDEuMCk7IHJldHVybiBtaXgoYiwgYSwgaCkgLSBrKmgqKDEuMC1oKTsgfQpmbG9hdCBzcGhlcmVEaXN0KHZlYzMgcG9zLCBmbG9hdCByYWRpdXMpIHsKICAgIHJldHVybiBsZW5ndGgocG9zKSAtIHJhZGl1czsKfQpmbG9hdCB0b3J1c1NoYXBlKHZlYzMgcG9zLCB2ZWMyIHBhcmFtcykgewogICAgdmVjMiBxID0gdmVjMihsZW5ndGgocG9zLnh6KSAtIHBhcmFtcy54LCBwb3MueSk7CiAgICByZXR1cm4gbGVuZ3RoKHEpIC0gcGFyYW1zLnk7Cn0KZmxvYXQgdmVydEN5bGluZGVyKHZlYzMgcG9zLCB2ZWMyIGRpbSkgewogICAgcmV0dXJuIG1heChsZW5ndGgocG9zLnh6KSAtIGRpbS54LCBhYnMocG9zLnkpIC0gZGltLnkpOwp9CmZsb2F0IGNhcFkodmVjMyBwb3MsIGZsb2F0IHJhZCwgZmxvYXQgaGVpZ2h0KSB7CiAgICBwb3MueSAtPSBjbGFtcChwb3MueSwgMC4wLCBoZWlnaHQpOwogICAgcmV0dXJuIGxlbmd0aChwb3MpIC0gcmFkOwp9CmZsb2F0IHNtb290aE1pbihmbG9hdCBhLCBmbG9hdCBiLCBmbG9hdCBibGVuZCkgewogICAgZmxvYXQgaCA9IGNsYW1wKDAuNSArIDAuNSAqIChiIC0gYSkgLyBibGVuZCwgMC4wLCAxLjApOwogICAgcmV0dXJuIG1peChiLCBhLCBoKSAtIGJsZW5kICogaCAqICgxLjAgLSBoKTsKfQpmbG9hdCBob3JzZUJhc2UodmVjMyBjb29yZCwgZmxvYXQgc2NhbGUpIHsKICAgIGZsb2F0IHJlc3VsdCA9IDEuMDsKICAgIGZsb2F0IGJsZW5kRmFjdG9yID0gc2NhbGUgKiAwLjM7CiAgICBmbG9hdCBxMSA9IHNjYWxlICogMC4yNSwgcTIgPSBzY2FsZSAqIDAuNCwgcTMgPSBzY2FsZSAqIDAuNTsKICAgIHJlc3VsdCA9IG1pbihyZXN1bHQsIHNwaGVyZURpc3QoY29vcmQsIHNjYWxlKSk7CiAgICByZXN1bHQgPSBtYXgocmVzdWx0LCBhYnMoY29vcmQueSkgLSAwLjEpOwogICAgcmVzdWx0ID0gc21vb3RoTWluKHJlc3VsdCwgdG9ydXNTaGFwZShjb29yZCArIHZlYzMoMC4sIC1xMSwgMC4pLCB2ZWMyKHEzLCBxMSkpLCBibGVuZEZhY3Rvcik7CiAgICByZXN1bHQgPSBzbW9vdGhNaW4ocmVzdWx0LCB2ZXJ0Q3lsaW5kZXIoY29vcmQgKyB2ZWMzKDAuLCAtKHNjYWxlICsgcTEpLCAwLiksIHZlYzIocTIsIHNjYWxlKSksIGJsZW5kRmFjdG9yKTsKICAgIHJldHVybiByZXN1bHQ7Cn0KZmxvYXQgaG9yc2VNb2RlbCh2ZWMzIHBvc2l0aW9uKSB7CiAgICBwb3NpdGlvbiA9IHBvc2l0aW9uICogMC43OwogICAgcG9zaXRpb24ueSArPSAyLjU7CiAgICBmbG9hdCBjb3NWYWwgPSBjb3MoNC43KSwgc2luVmFsID0gc2luKDQuNyk7CiAgICBwb3NpdGlvbi54eiA9IHZlYzIoY29zVmFsICogcG9zaXRpb24ueCAtIHNpblZhbCAqIHBvc2l0aW9uLnosIHNpblZhbCAqIHBvc2l0aW9uLnggKyBjb3NWYWwgKiBwb3NpdGlvbi56KTsKICAgIGZsb2F0IGJhc2VTY2FsZSA9IDEuMDsKICAgIGZsb2F0IGJsZW5kSyA9IGJhc2VTY2FsZSAqIDAuMzsKICAgIGZsb2F0IHMxID0gYmFzZVNjYWxlICogMC4xMCwgczIgPSBiYXNlU2NhbGUgKiAwLjI1LCBzMyA9IGJhc2VTY2FsZSAqIDAuNDsKICAgIGZsb2F0IHM0ID0gYmFzZVNjYWxlICogMC41LCBzNSA9IGJhc2VTY2FsZSAqIDAuNiwgczYgPSBiYXNlU2NhbGUgKiAwLjcsIHM3ID0gYmFzZVNjYWxlICogMC44OwogICAgZmxvYXQgZmluYWxEaXN0ID0gaG9yc2VCYXNlKHBvc2l0aW9uLCBiYXNlU2NhbGUpOwogICAgZmluYWxEaXN0ID0gc21vb3RoTWluKGZpbmFsRGlzdCwgc3BoZXJlRGlzdChwb3NpdGlvbiArIHZlYzMoMC4sIC0oYmFzZVNjYWxlICsgczEpLCAtczIpLCBzNCksIGJsZW5kSyk7CiAgICB2ZWMzIGhlYWRQb3MgPSBwb3NpdGlvbjsKICAgIGZsb2F0IGhlYWREaXN0ID0gc3BoZXJlRGlzdChoZWFkUG9zICsgdmVjMygwLiwgLShiYXNlU2NhbGUgKiAyLjAgKyBzNiksIDAuKSwgczUpOwogICAgaGVhZFBvcyArPSB2ZWMzKDAuLCAtKGJhc2VTY2FsZSAqIDIuMCArIHM1KSwgMC4pOwogICAgZmxvYXQgYW5nbGUgPSAxLjg1OwogICAgZmxvYXQgY29zQSA9IGNvcyhhbmdsZSksIHNpbkEgPSBzaW4oYW5nbGUpOwogICAgaGVhZFBvcy56eSA9IHZlYzIoY29zQSAqIGhlYWRQb3MueiAtIHNpbkEgKiBoZWFkUG9zLnksIHNpbkEgKiBoZWFkUG9zLnogKyBjb3NBICogaGVhZFBvcy55KTsKICAgIGhlYWREaXN0ID0gc21vb3RoTWluKGhlYWREaXN0LCBjYXBZKGhlYWRQb3MgKyB2ZWMzKDAuLCAtKHMxICogMy4wKSwgczEpLCBzMywgYmFzZVNjYWxlKSwgczYpOwogICAgZmluYWxEaXN0ID0gc21vb3RoTWluKGZpbmFsRGlzdCwgaGVhZERpc3QsIGJsZW5kSyk7CiAgICB2ZWMzIGVhclBvcyA9IHBvc2l0aW9uOwogICAgZWFyUG9zLnggPSBhYnMoZWFyUG9zLngpOwogICAgZmxvYXQgZWFyU2hhcGUgPSB0b3J1c1NoYXBlKGVhclBvcyArIHZlYzMoLXMzLCAtKGJhc2VTY2FsZSAqIDMuMCArIHMyKSwgMC4pLCB2ZWMyKC1zNSwgczcpKTsKICAgIGVhclNoYXBlID0gbWF4KGVhclNoYXBlLCAtdG9ydXNTaGFwZShlYXJQb3MgKyB2ZWMzKC1zNSwgLShiYXNlU2NhbGUgKiAzLjAgKyBzMiksIDAuKSwgdmVjMigtczUsIHM3KSkpOwogICAgZmluYWxEaXN0ID0gbWluKGZpbmFsRGlzdCwgZWFyU2hhcGUpOwogICAgdmVjMyBtYW5lUG9zID0gcG9zaXRpb24gKyB2ZWMzKDAuLCAtKGJhc2VTY2FsZSAqIDIuMCArIHMyKSwgczMpOwogICAgdmVjMyBtYW5lT2Zmc2V0ID0gbWFuZVBvcyArIHZlYzMoMC4wLCBjb3MobWFuZVBvcy55ICogczcpICogKC1zNCksIHNpbihtYW5lUG9zLnkgKiAoYmFzZVNjYWxlICogMi4wICsgczcpICsgczQpICogYmxlbmRLKTsKICAgIGZsb2F0IG1hbmVXaWR0aCA9IHMxICogcG93KHNpbihtYW5lT2Zmc2V0LnkgKiAoYmFzZVNjYWxlICogMzAuMCkpLCAyLjApICsgczE7CiAgICBmaW5hbERpc3QgPSBzbW9vdGhNaW4oZmluYWxEaXN0LCB2ZXJ0Q3lsaW5kZXIobWFuZU9mZnNldCwgdmVjMihtYW5lV2lkdGgsIGJhc2VTY2FsZSkpLCBzMik7CiAgICBtYW5lV2lkdGggPSBzMSAqIHBvdyhzaW4obWFuZVBvcy55ICogKGJhc2VTY2FsZSAqIDMwLjApKSwgMi4wKSArIHMxOwogICAgZmluYWxEaXN0ID0gc21vb3RoTWluKGZpbmFsRGlzdCwgdmVydEN5bGluZGVyKG1hbmVQb3MgKyB2ZWMzKDAuLCBzNywgczEpLCB2ZWMyKG1hbmVXaWR0aCwgczcpKSwgczIpOwogICAgcmV0dXJuIGZpbmFsRGlzdDsKfQpmbG9hdCBwYXduKHZlYzMgcG9zKSB7CiAgICBmbG9hdCByYWRpYWxEaXN0ID0gbGVuZ3RoKHBvcy54eik7CiAgICB2ZWMyIGNyb3NzU2VjdGlvbiA9IHZlYzIocmFkaWFsRGlzdCwgcG9zLnkpOwogICAgdmVjMiB0b3BPZmZzZXQgPSBjcm9zc1NlY3Rpb24gLSB2ZWMyKDAuMCwgMS4xKTsKICAgIGZsb2F0IHRvcEJhbGwgPSBsZW5ndGgodG9wT2Zmc2V0KSAtIDAuOTg7CiAgICB2ZWMyIG5lY2tDZW50ZXIgPSB2ZWMyKDAuMCwgLTAuMTIpOwogICAgdmVjMiBuZWNrUmFkaWkgPSB2ZWMyKDAuOTcsIDAuMzEpOwogICAgZmxvYXQgbmVja1JpbmcgPSBlbGxpcHNlMihjcm9zc1NlY3Rpb24gLSBuZWNrQ2VudGVyLCBuZWNrUmFkaWkpOwogICAgZmxvYXQgd2Fpc3RVcHBlciA9IGVsbGlwc2UyKGNyb3NzU2VjdGlvbiAtIHZlYzIoMC4wLCAwLjA1KSwgdmVjMigwLjQ4LCAwLjgyKSk7CiAgICBmbG9hdCB3YWlzdExvd2VyID0gZWxsaXBzZTIoY3Jvc3NTZWN0aW9uIC0gdmVjMigwLjAsIC0yLjI1KSwgdmVjMigwLjg3LCAwLjMxKSk7CiAgICBmbG9hdCB3YWlzdE1pZGRsZSA9IGVsbGlwc2UyKGNyb3NzU2VjdGlvbiAtIHZlYzIoMC4wLCAtMi4wNSksIHZlYzIoMS4zNywgMC4zMSkpOwogICAgZmxvYXQgYmFzZUxvd2VyID0gZWxsaXBzZTIoY3Jvc3NTZWN0aW9uIC0gdmVjMigwLjAsIC0yLjI1KSwgdmVjMigxLjE3LCAwLjYxKSk7CiAgICBmbG9hdCBiYXNlTWlkZGxlID0gZWxsaXBzZTIoY3Jvc3NTZWN0aW9uIC0gdmVjMigwLjAsIC0zLjI1KSwgdmVjMigxLjk3LCAwLjYxKSk7CiAgICBmbG9hdCBiYXNlQm90dG9tID0gZWxsaXBzZTIoY3Jvc3NTZWN0aW9uIC0gdmVjMigwLjAsIC0zLjc1KSwgdmVjMigyLjA3LCAwLjUxKSk7CiAgICBmbG9hdCBoZWFkU2VjdGlvbiA9IGJsZW5kKHRvcEJhbGwsIG5lY2tSaW5nLCAwLjMpOwogICAgZmxvYXQgd2Fpc3RCbGVuZCA9IGJsZW5kKHdhaXN0VXBwZXIsIHdhaXN0TG93ZXIsIDMuMCk7CiAgICBmbG9hdCBiYXNlQmxlbmQgPSBibGVuZChiYXNlTG93ZXIsIGJhc2VNaWRkbGUsIDEuMik7CiAgICBmbG9hdCBjb21wbGV0ZUJhc2UgPSBibGVuZChiYXNlQmxlbmQsIGJhc2VCb3R0b20sIDAuMyk7CiAgICBmbG9hdCByZXN1bHQgPSBtaW4oaGVhZFNlY3Rpb24sIHdhaXN0QmxlbmQpOwogICAgcmVzdWx0ID0gbWluKHJlc3VsdCwgd2Fpc3RNaWRkbGUpOwogICAgcmVzdWx0ID0gbWluKHJlc3VsdCwgY29tcGxldGVCYXNlKTsKICAgIHJldHVybiByZXN1bHQ7Cn0KZmxvYXQgYmFzZTEodmVjMyBwb3MpIHsKICAgIHZlYzIgcHJvZmlsZSA9IHZlYzIobGVuZ3RoKHBvcy54eiksIHBvcy55KTsKICAgIGZsb2F0IG5lY2tQYXJ0ID0gZWxsaXBzZTIocHJvZmlsZSAtIHZlYzIoMC4wLCAtMC45OCksIHZlYzIoMS4yOCwgMS4wMikpOwogICAgZmxvYXQgcmluZzEgPSBlbGxpcHNlMihwcm9maWxlIC0gdmVjMigwLjAsIC0yLjI4KSwgdmVjMigxLjU3LCAwLjYxKSk7CiAgICBmbG9hdCByaW5nMiA9IGVsbGlwc2UyKHByb2ZpbGUgLSB2ZWMyKDAuMCwgLTMuMjgpLCB2ZWMyKDIuNDcsIDAuNjEpKTsKICAgIGZsb2F0IHJpbmczID0gZWxsaXBzZTIocHJvZmlsZSAtIHZlYzIoMC4wLCAtMy43OCksIHZlYzIoMi41NywgMC41MSkpOwogICAgZmxvYXQgYmFuZCA9IGVsbGlwc2UyKHByb2ZpbGUgLSB2ZWMyKDAuMCwgLTIuMDgpLCB2ZWMyKDEuNzcsIDAuMzEpKTsKICAgIGZsb2F0IG1lcmdlZCA9IGJsZW5kKHJpbmcxLCByaW5nMiwgMS4wKTsKICAgIG1lcmdlZCA9IGJsZW5kKG1lcmdlZCwgcmluZzMsIDAuMyk7CiAgICBtZXJnZWQgPSBtaW4obWVyZ2VkLCBiYW5kKTsKICAgIHJldHVybiBtZXJnZWQ7Cn0KZmxvYXQgYmFzZTIodmVjMyBwb3MpIHsKICAgIGZsb2F0IHBlZGVzdGFsID0gYmFzZTEocG9zKTsKICAgIHZlYzIgc2lkZVZpZXcgPSB2ZWMyKGxlbmd0aChwb3MueHopLCBwb3MueSk7CiAgICBmbG9hdCBtYWluQ29sdW1uID0gZWxsaXBzZTIoc2lkZVZpZXcgLSB2ZWMyKDAuMCwgLTEuMzgpLCB2ZWMyKDEuMTMsIDIuNzIpKTsKICAgIGZsb2F0IGNyb3duMSA9IGVsbGlwc2UyKHNpZGVWaWV3IC0gdmVjMigwLjAsIDIuMDIpLCB2ZWMyKDEuNTgsIDAuMzEpKTsKICAgIGZsb2F0IGNyb3duMiA9IGVsbGlwc2UyKHNpZGVWaWV3IC0gdmVjMigwLjAsIDIuMjIpLCB2ZWMyKDEuNDgsIDAuMjEpKTsKICAgIGZsb2F0IGNyb3duMyA9IGVsbGlwc2UyKHNpZGVWaWV3IC0gdmVjMigwLjAsIDIuODIpLCB2ZWMyKDEuMTgsIDAuMjEpKTsKICAgIGZsb2F0IHRvcFNwaGVyZSA9IGVsbGlwc2UyKHNpZGVWaWV3IC0gdmVjMigwLjAsIDUuOTIpLCB2ZWMyKDEuODgsIDIuODIpKTsKICAgIGZsb2F0IGN1dFZvbHVtZSA9IHJvdW5kQm94KHBvcyAtIHZlYzMoMC4wLCA3LjIyLCAwLjApLCB2ZWMzKDIuOTgsIDIuNTIsIDIuOTgpLCAwLjApOwogICAgcGVkZXN0YWwgPSBibGVuZChwZWRlc3RhbCwgbWFpbkNvbHVtbiwgMS44KTsKICAgIHBlZGVzdGFsID0gYmxlbmQocGVkZXN0YWwsIGNyb3duMSwgMS44KTsKICAgIHBlZGVzdGFsID0gbWluKHBlZGVzdGFsLCBjcm93bjIpOwogICAgcGVkZXN0YWwgPSBibGVuZChwZWRlc3RhbCwgY3Jvd24zLCAwLjU1KTsKICAgIHBlZGVzdGFsID0gYmxlbmQocGVkZXN0YWwsIHRvcFNwaGVyZSwgMS4xKTsKICAgIHJldHVybiBtYXgocGVkZXN0YWwsIC1jdXRWb2x1bWUpOwp9CmZsb2F0IHJvb2sodmVjMyBwb3NpdGlvbikgewogICAgZmxvYXQgZm91bmRhdGlvbiA9IGJhc2UxKHBvc2l0aW9uKTsKICAgIHZlYzIgc2lsaG91ZXR0ZSA9IHZlYzIobGVuZ3RoKHBvc2l0aW9uLnh6KSwgcG9zaXRpb24ueSk7CiAgICB2ZWMyIG5lY2tQb3MgPSBzaWxob3VldHRlIC0gdmVjMigwLjAsIC0wLjk4KTsKICAgIGZsb2F0IHRvd2VyTmVjayA9IGVsbGlwc2UyKG5lY2tQb3MsIHZlYzIoMS4xOCwgMS4zMikpOwogICAgdmVjMiByaW1Qb3MgPSBzaWxob3VldHRlIC0gdmVjMigwLjAsIDAuNTIpOwogICAgZmxvYXQgY3Jvd25SaW0gPSBlbGxpcHNlMihyaW1Qb3MsIHZlYzIoMS42OCwgMC4yMSkpOwogICAgZmxvYXQgdG93ZXIgPSBibGVuZChmb3VuZGF0aW9uLCB0b3dlck5lY2ssIDEuMCk7CiAgICB0b3dlciA9IGJsZW5kKHRvd2VyLCBjcm93blJpbSwgMS40KTsKICAgIHZlYzMgbWVybG9uT2Zmc2V0ID0gdmVjMyhzaWxob3VldHRlLngsIHBvc2l0aW9uLnksIDAuMCkgLSB2ZWMzKDEuMzgsIDEuMTIsIDAuMCk7CiAgICBmbG9hdCBzaW5nbGVNZXJsb24gPSByb3VuZEJveChtZXJsb25PZmZzZXQsIHZlYzMoMC4yMSwgMC42MSwgMS45OCksIDAuMCk7CiAgICB0b3dlciA9IG1pbih0b3dlciwgc2luZ2xlTWVybG9uKTsKICAgIHZlYzMgcm90YXRlZFBvcyA9IHBvc2l0aW9uOwogICAgZmxvYXQgcm90YXRpb25BbmdsZSA9IDIuMDk0Mzk1OwogICAgZmxvYXQgY29zQSA9IGNvcyhyb3RhdGlvbkFuZ2xlKTsKICAgIGZsb2F0IHNpbkEgPSBzaW4ocm90YXRpb25BbmdsZSk7CiAgICBtYXQyIHJvdGF0aW9uTWF0cml4ID0gbWF0Mihjb3NBLCAtc2luQSwgc2luQSwgY29zQSk7CiAgICBmb3IgKGludCBzbG90ID0gMDsgc2xvdCA8IDM7IHNsb3QrKykgewogICAgICAgIHZlYzMgZ2FwQm94ID0gcm90YXRlZFBvcyAtIHZlYzMoMC4wLCAxLjQyLCAwLjApOwogICAgICAgIGZsb2F0IGdhcCA9IHJvdW5kQm94KGdhcEJveCwgdmVjMygxLjk4LCAwLjYxLCAwLjIxKSwgMC4wKTsKICAgICAgICB0b3dlciA9IG1heCh0b3dlciwgLWdhcCk7CiAgICAgICAgcm90YXRlZFBvcy54eiA9IHJvdGF0aW9uTWF0cml4ICogcm90YXRlZFBvcy54ejsKICAgIH0KICAgIHJldHVybiB0b3dlcjsKfQpmbG9hdCBrbmlnaHQodmVjMyBjb29yZCkgewogICAgZmxvYXQgcGxhdGZvcm0gPSBiYXNlMShjb29yZCk7CiAgICBjb29yZC54ID0gYWJzKGNvb3JkLngpOwogICAgdmVjMyBib2R5Q2VudGVyID0gY29vcmQgLSB2ZWMzKDAuMCwgMi4wMiwgMC4wKTsKICAgIGZsb2F0IG91dGVyQm91bmQgPSBsZW5ndGgoYm9keUNlbnRlcikgLSAzLjk3OwogICAgdmVjMyBzY2FsZWRCb2R5ID0gYm9keUNlbnRlciAvIHZlYzMoMS45OCwgNS4wMiwgMS43OCk7CiAgICBmbG9hdCBpbm5lckJvdW5kID0gKGxlbmd0aChzY2FsZWRCb2R5KSAtIDEuMCkgKiAxLjc4OwogICAgdmVjMyBuZWNrQmFzZSA9IGNvb3JkIC0gdmVjMygtMC4yOCwgMS4wMiwgMC41Mik7CiAgICBmbG9hdCBuZWNrVHJ1bmsgPSByb3VuZENvbmUobmVja0Jhc2UsIDAuNzgsIDIuMjIsIDIuMTgpOwogICAgdmVjMyBjdXRTY2FsZSA9IChjb29yZCAtIHZlYzMoMi4xOCwgMC4wLCAwLjApKSAvIHZlYzMoMS40OCwgMi41MiwgNC45OCk7CiAgICBmbG9hdCBzaWRlQ3V0ID0gKGxlbmd0aChjdXRTY2FsZSkgLSAxLjApICogMS40ODsKICAgIGZsb2F0IHRpbHRBbmdsZSA9IDEuMzI7CiAgICBmbG9hdCBjb3NUID0gY29zKHRpbHRBbmdsZSk7CiAgICBmbG9hdCBzaW5UID0gc2luKHRpbHRBbmdsZSk7CiAgICBtYXQzIHRpbHRNYXRyaXggPSBtYXQzKDEuMCwgMC4wLCAwLjAsIDAuMCwgY29zVCwgLXNpblQsIDAuMCwgc2luVCwgY29zVCk7CiAgICB2ZWMzIGhlYWRCYXNlID0gY29vcmQgLSB2ZWMzKDAuMCwgMi41MiwgMC41Mik7CiAgICBmbG9hdCBoZWFkQ29uZSA9IHJvdW5kQ29uZSh0aWx0TWF0cml4ICogaGVhZEJhc2UsIDEuMTgsIDAuNTgsIDEuNCk7CiAgICBmb3IoaW50IGkgPSAwOyBpIDwgODsgaSsrKSB7CiAgICAgICAgZmxvYXQgb2Zmc2V0ID0gZmxvYXQoaSkgKiAwLjE1OwogICAgICAgIHZlYzMgbWFuZVBvcyA9IGNvb3JkIC0gdmVjMygwLjAsIDIuNSAtIG9mZnNldCwgLTAuMyk7CiAgICAgICAgZmxvYXQgbWFuZUdyb292ZSA9IGxlbmd0aChtYW5lUG9zLnh6KSAtIDAuMDU7CiAgICAgICAgaGVhZENvbmUgPSBtYXgoaGVhZENvbmUsIC1tYW5lR3Jvb3ZlKTsKICAgIH0KICAgIGZsb2F0IHBsYW5lQ3V0ID0gMC41MiAtIGNvb3JkLng7CiAgICB2ZWMzIHJlYXJDdXRDZW50ZXIgPSBjb29yZCAtIHZlYzMoMi4wOCwgMi44MiwgLTEuODgpOwogICAgZmxvYXQgcmVhckN1dCA9IGxlbmd0aChyZWFyQ3V0Q2VudGVyKSAtIDEuOTg7CiAgICB2ZWMzIHNob3VsZGVyU2NhbGUgPSAoY29vcmQgLSB2ZWMzKDAuMCwgMi4yMiwgMC4wKSkgLyB2ZWMzKDEuOTgsIDEuMjgsIDIuMjgpOwogICAgZmxvYXQgc2hvdWxkZXJNYXNzID0gKGxlbmd0aChzaG91bGRlclNjYWxlKSAtIDEuMCkgKiAxLjI4OwogICAgZmxvYXQgbmVja0Fzc2VtYmx5ID0gbWF4KG5lY2tUcnVuaywgLXNpZGVDdXQpOwogICAgZmxvYXQgaGVhZEFzc2VtYmx5ID0gaGVhZENvbmU7CiAgICBoZWFkQXNzZW1ibHkgPSBtYXgoaGVhZEFzc2VtYmx5LCAtcGxhbmVDdXQpOwogICAgaGVhZEFzc2VtYmx5ID0gbWF4KGhlYWRBc3NlbWJseSwgLXJlYXJDdXQpOwogICAgaGVhZEFzc2VtYmx5ID0gbWF4KGhlYWRBc3NlbWJseSwgc2hvdWxkZXJNYXNzKTsKICAgIG5lY2tBc3NlbWJseSA9IGJsZW5kKG5lY2tBc3NlbWJseSwgaGVhZEFzc2VtYmx5LCAwLjcyKTsKICAgIGZsb2F0IGhvcnNlQm9keSA9IG1pbihwbGF0Zm9ybSwgbWF4KG1heChuZWNrQXNzZW1ibHksIG91dGVyQm91bmQpLCBpbm5lckJvdW5kKSk7CiAgICByZXR1cm4gaG9yc2VCb2R5Owp9CmZsb2F0IGJpc2hvcCh2ZWMzIGxvYykgewogICAgZmxvYXQgc3RhbmQgPSBiYXNlMShsb2MpOwogICAgdmVjMiBvdXRsaW5lID0gdmVjMihsZW5ndGgobG9jLnh6KSwgbG9jLnkpOwogICAgdmVjMiBzdGVtQ2VudGVyID0gb3V0bGluZSAtIHZlYzIoMC4wLCAtMS4zOCk7CiAgICBmbG9hdCBib2R5U3RlbSA9IGVsbGlwc2UyKHN0ZW1DZW50ZXIsIHZlYzIoMC45OCwgMS42MikpOwogICAgZmxvYXQgY2FwUmluZzEgPSBlbGxpcHNlMihvdXRsaW5lIC0gdmVjMigwLjAsIDAuNzIpLCB2ZWMyKDEuNTgsIDAuMzEpKTsKICAgIGZsb2F0IGNhcFJpbmcyID0gZWxsaXBzZTIob3V0bGluZSAtIHZlYzIoMC4wLCAwLjkyKSwgdmVjMigxLjQ4LCAwLjIxKSk7CiAgICBmbG9hdCBjYXBSaW5nMyA9IGVsbGlwc2UyKG91dGxpbmUgLSB2ZWMyKDAuMCwgMS41MiksIHZlYzIoMS4xOCwgMC4yMSkpOwogICAgdmVjMiBtaXRyZUNlbnRlciA9IG91dGxpbmUgLSB2ZWMyKDAuMCwgMi42Mik7CiAgICBmbG9hdCBtaXRyZSA9IGVsbGlwc2UyKG1pdHJlQ2VudGVyLCB2ZWMyKDEuMjgsIDEuNTIpKTsKICAgIHZlYzIgdGlwQ2VudGVyID0gb3V0bGluZSAtIHZlYzIoMC4wLCA0LjIyKTsKICAgIGZsb2F0IHRpcCA9IGVsbGlwc2UyKHRpcENlbnRlciwgdmVjMigwLjM4LCAwLjM4KSk7CiAgICBmbG9hdCBzbGl0QW5nbGUgPSAtMC40MjsKICAgIGZsb2F0IGNvc1MgPSBjb3Moc2xpdEFuZ2xlKTsKICAgIGZsb2F0IHNpblMgPSBzaW4oc2xpdEFuZ2xlKTsKICAgIG1hdDIgc2xpdFJvdGF0aW9uID0gbWF0Mihjb3NTLCAtc2luUywgc2luUywgY29zUyk7CiAgICB2ZWMzIHNsaXRQb3MgPSBsb2MgLSB2ZWMzKDAuNzgsIDMuNzIsIDAuMCk7CiAgICB2ZWMyIHJvdGF0ZWRTbGl0ID0gc2xpdFJvdGF0aW9uICogc2xpdFBvcy54eTsKICAgIHZlYzMgc2xpdEJveCA9IHZlYzMocm90YXRlZFNsaXQsIHNsaXRQb3Mueik7CiAgICBmbG9hdCBzbGl0ID0gcm91bmRCb3goc2xpdEJveCwgdmVjMygwLjIxLCAwLjk4LCAxLjk4KSwgMC4wKTsKICAgIGZsb2F0IGJpc2hvcFNoYXBlID0gYmxlbmQoc3RhbmQsIGJvZHlTdGVtLCAwLjkyKTsKICAgIGJpc2hvcFNoYXBlID0gYmxlbmQoYmlzaG9wU2hhcGUsIGNhcFJpbmcxLCAxLjUyKTsKICAgIGJpc2hvcFNoYXBlID0gbWluKGJpc2hvcFNoYXBlLCBjYXBSaW5nMik7CiAgICBiaXNob3BTaGFwZSA9IGJsZW5kKGJpc2hvcFNoYXBlLCBjYXBSaW5nMywgMC41Nyk7CiAgICBiaXNob3BTaGFwZSA9IG1pbihiaXNob3BTaGFwZSwgbWl0cmUpOwogICAgYmlzaG9wU2hhcGUgPSBtaW4oYmlzaG9wU2hhcGUsIHRpcCk7CiAgICBiaXNob3BTaGFwZSA9IG1heChiaXNob3BTaGFwZSwgLXNsaXQpOwogICAgcmV0dXJuIGJpc2hvcFNoYXBlOwp9CmZsb2F0IGtpbmcodmVjMyBwdCkgewogICAgZmxvYXQgYmFzZSA9IGJhc2UyKHB0KTsKICAgIHZlYzIgcHJvZmlsZSA9IHZlYzIobGVuZ3RoKHB0Lnh6KSwgcHQueSk7CiAgICB2ZWMyIGRpc2tDZW50ZXIgPSBwcm9maWxlIC0gdmVjMigwLjAsIDQuNjIpOwogICAgZmxvYXQgY3Jvd25EaXNrID0gZWxsaXBzZTIoZGlza0NlbnRlciwgdmVjMigxLjc4LCAwLjQyKSk7CiAgICB2ZWMzIHZCZWFtUG9zID0gcHQgLSB2ZWMzKDAuMCwgNS4yMiwgMC4wKTsKICAgIGZsb2F0IHZlcnRpY2FsQmVhbSA9IHJvdW5kQm94KHZCZWFtUG9zLCB2ZWMzKDAuMjgsIDEuNTIsIDAuMjMpLCAwLjApOwogICAgdmVjMyBoQmVhbVBvcyA9IHB0IC0gdmVjMygwLjAsIDUuODIsIDAuMCk7CiAgICBmbG9hdCBob3Jpem9udGFsQmVhbSA9IHJvdW5kQm94KGhCZWFtUG9zLCB2ZWMzKDAuOTgsIDAuMjgsIDAuMjMpLCAwLjApOwogICAgZmxvYXQga2luZ1BpZWNlID0gbWluKGJhc2UsIGNyb3duRGlzayk7CiAgICBraW5nUGllY2UgPSBtaW4oa2luZ1BpZWNlLCB2ZXJ0aWNhbEJlYW0pOwogICAga2luZ1BpZWNlID0gbWluKGtpbmdQaWVjZSwgaG9yaXpvbnRhbEJlYW0pOwogICAgcmV0dXJuIGtpbmdQaWVjZTsKfQpmbG9hdCBxdWVlbih2ZWMzIHBvaW50KSB7CiAgICBmbG9hdCBwZWRlc3RhbCA9IGJhc2UyKHBvaW50KTsKICAgIHZlYzIgY3Jvc3NTZWMgPSB2ZWMyKGxlbmd0aChwb2ludC54eiksIHBvaW50LnkpOwogICAgdmVjMiBjcm93bkNlbnRlciA9IGNyb3NzU2VjIC0gdmVjMigwLjAsIDQuMDIpOwogICAgZmxvYXQgY3Jvd25Cb2R5ID0gZWxsaXBzZTIoY3Jvd25DZW50ZXIsIHZlYzIoMS4yOCwgMS41MikpOwogICAgdmVjMiBjdXRDZW50ZXIgPSBjcm9zc1NlYyAtIHZlYzIoMC4wLCAyLjAyKTsKICAgIGZsb2F0IGNyb3duQ3V0ID0gcm91bmRCb3godmVjMyhjdXRDZW50ZXIsIDAuMCksIHZlYzMoMi45OCwgMi4wMiwgMi45OCksIDAuMCk7CiAgICB2ZWMyIG9yYkNlbnRlciA9IGNyb3NzU2VjIC0gdmVjMigwLjAsIDUuNjIpOwogICAgZmxvYXQgdG9wT3JiID0gZWxsaXBzZTIob3JiQ2VudGVyLCB2ZWMyKDAuNDgsIDAuNDgpKTsKICAgIHZlYzMgYWJzUG9pbnQgPSB2ZWMzKGFicyhwb2ludC54KSwgcG9pbnQueSwgYWJzKHBvaW50LnopKTsKICAgIGlmIChhYnNQb2ludC54ID4gYWJzUG9pbnQueikgewogICAgICAgIGFic1BvaW50ID0gYWJzUG9pbnQuenl4OwogICAgfQogICAgdmVjMyBub3RjaENlbnRlciA9IGFic1BvaW50IC0gdmVjMygwLjk4LCA0LjcyLCAyLjE4KTsKICAgIGZsb2F0IGNvcm5lck5vdGNoID0gbGVuZ3RoKG5vdGNoQ2VudGVyKSAtIDEuMDg7CiAgICBmbG9hdCBxdWVlblNoYXBlID0gbWluKHBlZGVzdGFsLCBtYXgoY3Jvd25Cb2R5LCAtY3Jvd25DdXQpKTsKICAgIHF1ZWVuU2hhcGUgPSBtaW4ocXVlZW5TaGFwZSwgdG9wT3JiKTsKICAgIHF1ZWVuU2hhcGUgPSBtYXgocXVlZW5TaGFwZSwgLWNvcm5lck5vdGNoKTsKICAgIHJldHVybiBxdWVlblNoYXBlOwp9CmZsb2F0IHRvcnVzSG9yaXpvbnRhbCh2ZWMzIHBvc2l0aW9uLCBmbG9hdCBtYWpvclJhZCwgZmxvYXQgbWlub3JSYWQpIHsKICAgIHZlYzIgcmFkaWFsQ29tcCA9IHZlYzIobGVuZ3RoKHBvc2l0aW9uLnh5KSAtIG1ham9yUmFkLCBwb3NpdGlvbi56KTsKICAgIHJldHVybiBsZW5ndGgocmFkaWFsQ29tcCkgLSBtaW5vclJhZDsKfQpmbG9hdCB0b3J1c1ZlcnRpY2FsKHZlYzMgcG9zaXRpb24sIGZsb2F0IG1ham9yUmFkLCBmbG9hdCBtaW5vclJhZCkgewogICAgdmVjMiByYWRpYWxDb21wID0gdmVjMihsZW5ndGgocG9zaXRpb24ueXopIC0gbWFqb3JSYWQsIHBvc2l0aW9uLngpOwogICAgcmV0dXJuIGxlbmd0aChyYWRpYWxDb21wKSAtIG1pbm9yUmFkOwp9CmZsb2F0IGNsb2NrU3BoZXJlKHZlYzMgcG9zaXRpb24pIHsKICAgIHJldHVybiBsZW5ndGgocG9zaXRpb24pIC0gMS4xODsKfQpmbG9hdCBnZXRDbG9ja1BhdHRlcm4odmVjMyBwKSB7CiAgICB2ZWMzIG5wID0gbm9ybWFsaXplKHApOwogICAgZmxvYXQgYSA9IChhdGFuKG5wLngsIG5wLnopICsgMy4xNDE1OSkgLyA2LjI4MzE4OwogICAgZmxvYXQgbCA9IGxlbmd0aCh2ZWMyKG5wLngsIG5wLnopKTsKICAgIGZsb2F0IGxsID0gYSAqIDIuMCArIHBvdyhsLCAwLjMpICogNy4wOwogICAgbGwgPSBmcmFjdChsbCk7CiAgICBmbG9hdCByYSA9IGEgKiAyNC4wIC0gaVRpbWU7CiAgICBmbG9hdCBiZ2xpbmUgPSBzdGVwKDAuMDIsIGFicyhsbCAtIDAuNjUpIC0gMC4zNSk7CiAgICBmbG9hdCBudW0gPSBzdGVwKDAuMywgZnJhY3QocmEpICogMi4wIC0gMC41KTsKICAgIHJldHVybiBtaXgoMC4zLCAwLjksIGJnbGluZSAqIG51bSk7Cn0KZmxvYXQgR2V0RGlzdGFuY2VDaGFpbih2ZWMzIHZQb3MpIHsKICAgIHZlYzMgdkNoYWluRG9tYWluID0gdlBvczsKICAgIHZDaGFpbkRvbWFpbi55ID0gZnJhY3QodkNoYWluRG9tYWluLnkgKyAwLjUpIC0gMC41OwogICAgZmxvYXQgZkRpc3RUb3J1czEgPSB0b3J1c0hvcml6b250YWwodkNoYWluRG9tYWluLCAwLjU1LCAwLjE1KTsKICAgIHZDaGFpbkRvbWFpbi55ID0gZnJhY3QodlBvcy55ICsgMS4wKSAtIDAuNTsKICAgIGZsb2F0IGZEaXN0VG9ydXMyID0gdG9ydXNWZXJ0aWNhbCh2Q2hhaW5Eb21haW4sIDAuNTUsIDAuMTUpOwogICAgcmV0dXJuIG1pbihmRGlzdFRvcnVzMSwgZkRpc3RUb3J1czIpOwp9CmZsb2F0IGNoZXNzRmllbGQodmVjMyBwKSB7CiAgICB2ZWMzIGlkID0gZmxvb3IocCAvIDEwLjApOwogICAgdmVjMyBsb2NhbFAgPSBtb2QocCwgMTAuMCkgLSA1LjA7CiAgICBmbG9hdCByYW5kVmFsID0gcm5kKGlkLnh6ICsgdmVjMihpZC55ICogMTAuMCkpOwogICAgYm9vbCBpc0dyb3VuZExldmVsID0gKGlkLnkgPT0gMC4wKTsKICAgIGJvb2wgaXNVbmRlcmdyb3VuZCA9IChpZC55IDwgMC4wKTsKICAgIGZsb2F0IHBpZWNlVHlwZSA9IGZyYWN0KHJhbmRWYWwgKiA2LjApOwogICAgdmVjMyBvYmpXb3JsZFBvcyA9IHZlYzMoaWQueCAqIDEwLjAsIGlkLnkgKiAxMC4wLCBpZC56ICogMTAuMCk7CiAgICBmbG9hdCBkaXN0VG9DYW1lcmEgPSBsZW5ndGgob2JqV29ybGRQb3MgLSB1Q2FtZXJhUG9zKTsKICAgIGJvb2wgaXNUb29GYXIgPSBkaXN0VG9DYW1lcmEgPiA4MC4wOwogICAgYm9vbCBhbGxvd0FuaW1hdGlvbiA9ICFpc1Rvb0ZhciAmJiAhaXNVbmRlcmdyb3VuZDsKICAgIGZsb2F0IGFuaW1UaW1lID0gYWxsb3dBbmltYXRpb24gPyBpVGltZSAqIChyYW5kVmFsICogMi4wIC0gMS4wKSAqIDAuOCA6IDAuMDsKICAgIGZsb2F0IHJvdEFuZ2xlID0gYWxsb3dBbmltYXRpb24gPyBpVGltZSAqIChyYW5kVmFsICogMi4wIC0gMS4wKSAqIDAuOCA6IDAuMDsKICAgIGZsb2F0IHBpZWNlOwogICAgaWYgKHBpZWNlVHlwZSA8IDAuMDkpIHsKICAgICAgICB2ZWMzIGNoYWluUCA9IGxvY2FsUDsKICAgICAgICBpZiAoaXNHcm91bmRMZXZlbCAmJiBhbGxvd0FuaW1hdGlvbikgewogICAgICAgICAgICBjaGFpblAueSArPSBzaW4oaVRpbWUpICsgMy41OwogICAgICAgIH0gZWxzZSBpZiAoaXNHcm91bmRMZXZlbCkgewogICAgICAgICAgICBjaGFpblAueSArPSAzLjU7CiAgICAgICAgfQogICAgICAgIHBpZWNlID0gR2V0RGlzdGFuY2VDaGFpbihjaGFpblApOwogICAgfSBlbHNlIGlmIChwaWVjZVR5cGUgPCAwLjI0KSB7CiAgICAgICAgdmVjMyBjbG9ja1AgPSBsb2NhbFA7CiAgICAgICAgaWYgKGFsbG93QW5pbWF0aW9uKSB7CiAgICAgICAgICAgIGZsb2F0IG1vdmVTcGVlZCA9IChyYW5kVmFsICogMi4wIC0gMS4wKSAqIDAuMzsKICAgICAgICAgICAgZmxvYXQgbW92ZVRpbWUgPSBpVGltZSAqIG1vdmVTcGVlZDsKICAgICAgICAgICAgZmxvYXQgb3JiaXRSYWRpdXMgPSAxLjU7CiAgICAgICAgICAgIGZsb2F0IG9yYml0QW5nbGUgPSBtb3ZlVGltZSArIHJhbmRWYWwgKiA2LjI4OwogICAgICAgICAgICBjbG9ja1AueCArPSBjb3Mob3JiaXRBbmdsZSkgKiBvcmJpdFJhZGl1czsKICAgICAgICAgICAgY2xvY2tQLnogKz0gc2luKG9yYml0QW5nbGUpICogb3JiaXRSYWRpdXM7CiAgICAgICAgICAgIGZsb2F0IHZlcnRpY2FsU3BlZWQgPSAocmFuZFZhbCAqIDIuMCAtIDEuMCkgKiAwLjg7CiAgICAgICAgICAgIGZsb2F0IHZlcnRpY2FsUGhhc2UgPSByYW5kVmFsICogNi4yODsKICAgICAgICAgICAgZmxvYXQgdmVydGljYWxPZmZzZXQgPSBzaW4oaVRpbWUgKiB2ZXJ0aWNhbFNwZWVkICsgdmVydGljYWxQaGFzZSkgKiAxLjI7CiAgICAgICAgICAgIGNsb2NrUC55ICs9IDEuMiArIHZlcnRpY2FsT2Zmc2V0OwogICAgICAgICAgICBmbG9hdCByb3RTcGVlZCA9IChyYW5kVmFsICogMi4wIC0gMS4wKSAqIDAuNTsKICAgICAgICAgICAgZmxvYXQgYW5nbGUgPSBpVGltZSAqIHJvdFNwZWVkOwogICAgICAgICAgICBmbG9hdCBjID0gY29zKGFuZ2xlKSwgcyA9IHNpbihhbmdsZSk7CiAgICAgICAgICAgIGNsb2NrUC54eiA9IHZlYzIoYyAqIGNsb2NrUC54IC0gcyAqIGNsb2NrUC56LCBzICogY2xvY2tQLnggKyBjICogY2xvY2tQLnopOwogICAgICAgIH0gZWxzZSB7CiAgICAgICAgICAgIGNsb2NrUC55ICs9IDEuMjsKICAgICAgICB9CiAgICAgICAgcGllY2UgPSBjbG9ja1NwaGVyZShjbG9ja1ApOwogICAgfSBlbHNlIGlmIChwaWVjZVR5cGUgPCAwLjM1KSB7CiAgICAgICAgZmxvYXQgdGlsdCA9IHNpbihhbmltVGltZSAqIDIuMCkgKiAwLjI7CiAgICAgICAgZmxvYXQgYzEgPSBjb3ModGlsdCksIHMxID0gc2luKHRpbHQpOwogICAgICAgIHZlYzMgcCA9IGxvY2FsUDsKICAgICAgICBwLnh5ID0gdmVjMihjMSAqIGxvY2FsUC54IC0gczEgKiBsb2NhbFAueSwgczEgKiBsb2NhbFAueCArIGMxICogbG9jYWxQLnkpOwogICAgICAgIGZsb2F0IGMgPSBjb3MoLXJvdEFuZ2xlICogMC41KSwgcyA9IHNpbigtcm90QW5nbGUgKiAwLjUpOwogICAgICAgIHAueHogPSB2ZWMyKGMgKiBwLnggLSBzICogcC56LCBzICogcC54ICsgYyAqIHAueik7CiAgICAgICAgcGllY2UgPSBwYXduKHApOwogICAgfSBlbHNlIGlmIChwaWVjZVR5cGUgPCAwLjM4KSB7CiAgICAgICAgZmxvYXQgYyA9IGNvcygtcm90QW5nbGUpLCBzID0gc2luKC1yb3RBbmdsZSk7CiAgICAgICAgdmVjMyBwID0gbG9jYWxQOwogICAgICAgIHAueHogPSB2ZWMyKGMgKiBsb2NhbFAueCAtIHMgKiBsb2NhbFAueiwgcyAqIGxvY2FsUC54ICsgYyAqIGxvY2FsUC56KTsKICAgICAgICBwLnogKz0gc2luKGFuaW1UaW1lICogMi41KSAqIDAuNDsKICAgICAgICBwaWVjZSA9IHJvb2socCk7CiAgICB9IGVsc2UgaWYgKHBpZWNlVHlwZSA8IDAuNTQpIHsKICAgICAgICBmbG9hdCBjID0gY29zKC1yb3RBbmdsZSAqIDEuNSksIHMgPSBzaW4oLXJvdEFuZ2xlICogMS41KTsKICAgICAgICB2ZWMzIHAgPSBsb2NhbFA7CiAgICAgICAgcC54eiA9IHZlYzIoYyAqIGxvY2FsUC54IC0gcyAqIGxvY2FsUC56LCBzICogbG9jYWxQLnggKyBjICogbG9jYWxQLnopOwogICAgICAgIHAueiArPSBzaW4oYW5pbVRpbWUgKiAzLjApICogMC4zOwogICAgICAgIGlmIChpc0dyb3VuZExldmVsICYmIGFsbG93QW5pbWF0aW9uKSB7CiAgICAgICAgICAgIHBpZWNlID0gaG9yc2VNb2RlbChwKTsKICAgICAgICB9IGVsc2UgewogICAgICAgICAgICBwaWVjZSA9IGtuaWdodChwKTsKICAgICAgICB9CiAgICB9IGVsc2UgaWYgKHBpZWNlVHlwZSA8IDAuNjkpIHsKICAgICAgICBmbG9hdCBjID0gY29zKC1yb3RBbmdsZSAqIDAuOCksIHMgPSBzaW4oLXJvdEFuZ2xlICogMC44KTsKICAgICAgICB2ZWMzIHAgPSBsb2NhbFA7CiAgICAgICAgcC54eiA9IHZlYzIoYyAqIGxvY2FsUC54IC0gcyAqIGxvY2FsUC56LCBzICogbG9jYWxQLnggKyBjICogbG9jYWxQLnopOwogICAgICAgIHAueiArPSBzaW4oYW5pbVRpbWUgKiAyLjApICogMC4zNTsKICAgICAgICBwaWVjZSA9IGJpc2hvcChwKTsKICAgIH0gZWxzZSBpZiAocGllY2VUeXBlIDwgMC44NSkgewogICAgICAgIGZsb2F0IGMgPSBjb3MoLXJvdEFuZ2xlICogMS4yKSwgcyA9IHNpbigtcm90QW5nbGUgKiAxLjIpOwogICAgICAgIHZlYzMgcCA9IGxvY2FsUDsKICAgICAgICBwLnh6ID0gdmVjMihjICogbG9jYWxQLnggLSBzICogbG9jYWxQLnosIHMgKiBsb2NhbFAueCArIGMgKiBsb2NhbFAueik7CiAgICAgICAgZmxvYXQgc2NhbGUgPSAxLjAgKyBzaW4oYW5pbVRpbWUgKiAyLjUpICogMC4wNTsKICAgICAgICBwICo9IHNjYWxlOwogICAgICAgIHBpZWNlID0gcXVlZW4ocCkgLyBzY2FsZTsKICAgIH0gZWxzZSB7CiAgICAgICAgZmxvYXQgYyA9IGNvcygtcm90QW5nbGUgKiAyLjApLCBzID0gc2luKC1yb3RBbmdsZSAqIDIuMCk7CiAgICAgICAgdmVjMyBwID0gbG9jYWxQOwogICAgICAgIHAueHogPSB2ZWMyKGMgKiBsb2NhbFAueCAtIHMgKiBsb2NhbFAueiwgcyAqIGxvY2FsUC54ICsgYyAqIGxvY2FsUC56KTsKICAgICAgICBwaWVjZSA9IGtpbmcocCk7CiAgICB9CiAgICByZXR1cm4gcGllY2U7Cn0KZmxvYXQgdGlsZVNoYXBlKHZlYzMgcG9zaXRpb24pIHsKICAgICB2ZWMyIHRpbGVMb2NhbCA9IG1vZChwb3NpdGlvbi54eiwgMS4wKSAtIHZlYzIoMC41KTsKICAgICB2ZWMzIGJveFBvcyA9IHZlYzModGlsZUxvY2FsLngsIHBvc2l0aW9uLnksIHRpbGVMb2NhbC55KTsKICAgICByZXR1cm4gcm91bmRCb3goYm94UG9zLCB2ZWMzKDAuNDY4KSwgMC4wMjEpOwp9CmZsb2F0IHNjZW5lRGlzdGFuY2UodmVjMyBwb3NpdGlvbikgewogICAgIGZsb2F0IGZsb29yVGlsZXMgPSB0aWxlU2hhcGUocG9zaXRpb24pOwogICAgIGZsb2F0IGNoZXNzUGllY2VzID0gY2hlc3NGaWVsZChwb3NpdGlvbik7CiAgICAgcmV0dXJuIG1pbihmbG9vclRpbGVzLCBjaGVzc1BpZWNlcyk7Cn0KZmxvYXQgdHJhY2UodmVjMyBybywgdmVjMyByZCkgewogICAgZmxvYXQgdCA9IDAuMDsKICAgIGZvcihpbnQgaSA9IDA7IGkgPCAxMjA7IGkrKykgewogICAgICAgIGlmIChpID4gODAgJiYgdCA+IDgwLjApIGJyZWFrOwogICAgICAgIHZlYzMgcCA9IHJvICsgcmQgKiB0OwogICAgICAgIGZsb2F0IGRpc3QgPSBzY2VuZURpc3RhbmNlKHApOwogICAgICAgIGZsb2F0IGRpc3RGcm9tQ2FtZXJhID0gbGVuZ3RoKHAgLSBybyk7CiAgICAgICAgdmVjMyBjZWxsSWQgPSBmbG9vcihwIC8gMTAuMCk7CiAgICAgICAgYm9vbCBpc0Zsb2F0aW5nID0gKGNlbGxJZC55ID4gMC4wKTsKICAgICAgICBmbG9hdCB0aHJlc2hvbGQ7CiAgICAgICAgaWYgKGRpc3RGcm9tQ2FtZXJhIDwgMTUuMCkgewogICAgICAgICAgICB0aHJlc2hvbGQgPSBpc0Zsb2F0aW5nID8gMC4wMDIgOiAwLjAwMDU7CiAgICAgICAgfSBlbHNlIGlmIChkaXN0RnJvbUNhbWVyYSA8IDMwLjApIHsKICAgICAgICAgICAgdGhyZXNob2xkID0gaXNGbG9hdGluZyA/IDAuMDA2IDogMC4wMDI7CiAgICAgICAgfSBlbHNlIGlmIChkaXN0RnJvbUNhbWVyYSA8IDYwLjApIHsKICAgICAgICAgICAgdGhyZXNob2xkID0gaXNGbG9hdGluZyA/IDAuMDEyIDogMC4wMDU7CiAgICAgICAgfSBlbHNlIHsKICAgICAgICAgICAgdGhyZXNob2xkID0gMC4wMTU7CiAgICAgICAgfQogICAgICAgIGlmKGRpc3QgPCB0aHJlc2hvbGQgfHwgdCA+IDEyMC4wKSBicmVhazsKICAgICAgICBmbG9hdCBzdGVwU2l6ZTsKICAgICAgICBpZiAoZGlzdEZyb21DYW1lcmEgPCAyMC4wKSB7CiAgICAgICAgICAgIHN0ZXBTaXplID0gMC41OwogICAgICAgIH0gZWxzZSBpZiAoZGlzdEZyb21DYW1lcmEgPCA1MC4wKSB7CiAgICAgICAgICAgIHN0ZXBTaXplID0gMC42NTsKICAgICAgICB9IGVsc2UgewogICAgICAgICAgICBzdGVwU2l6ZSA9IDAuODU7CiAgICAgICAgfQogICAgICAgIHQgKz0gZGlzdCAqIHN0ZXBTaXplOwogICAgfQogICAgcmV0dXJuIHQ7Cn0KdmVjMyBub3JtYWwodmVjMyBzcCkgewogICAgZmxvYXQgZGlzdEZyb21DYW1lcmEgPSBsZW5ndGgoc3AgLSB1Q2FtZXJhUG9zKTsKICAgIHZlYzMgaWQgPSBmbG9vcihzcCAvIDEwLjApOwogICAgYm9vbCBpc0Zsb2F0aW5nID0gKGlkLnkgPiAwLjApOwogICAgZmxvYXQgZXBzaWxvbjsKICAgIGlmIChpc0Zsb2F0aW5nKSB7CiAgICAgICAgZXBzaWxvbiA9IDAuMDA0OwogICAgfSBlbHNlIHsKICAgICAgICBpZiAoZGlzdEZyb21DYW1lcmEgPCAyMC4wKSB7CiAgICAgICAgICAgIGVwc2lsb24gPSAwLjAwMDM7CiAgICAgICAgfSBlbHNlIGlmIChkaXN0RnJvbUNhbWVyYSA8IDQwLjApIHsKICAgICAgICAgICAgZXBzaWxvbiA9IDAuMDAxNTsKICAgICAgICB9IGVsc2UgewogICAgICAgICAgICBlcHNpbG9uID0gMC4wMDM7CiAgICAgICAgfQogICAgfQogICAgdmVjMiBlID0gdmVjMihlcHNpbG9uLCAwLjApOwogICAgcmV0dXJuIG5vcm1hbGl6ZSh2ZWMzKAogICAgICAgIHNjZW5lRGlzdGFuY2Uoc3AgKyBlLnh5eSkgLSBzY2VuZURpc3RhbmNlKHNwIC0gZS54eXkpLAogICAgICAgIHNjZW5lRGlzdGFuY2Uoc3AgKyBlLnl4eSkgLSBzY2VuZURpc3RhbmNlKHNwIC0gZS55eHkpLAogICAgICAgIHNjZW5lRGlzdGFuY2Uoc3AgKyBlLnl5eCkgLSBzY2VuZURpc3RhbmNlKHNwIC0gZS55eXgpCiAgICApKTsKfQpmbG9hdCBjYWxjdWxhdGVBTyh2ZWMzIHBvcywgdmVjMyBub3IpIHsKICAgIGZsb2F0IHNjYSA9IDIuMCwgb2NjID0gMC4wOwogICAgZmxvYXQgZGlzdEZyb21DYW1lcmEgPSBsZW5ndGgocG9zIC0gdUNhbWVyYVBvcyk7CiAgICBmbG9hdCBzdGVwQmFzZSA9IGRpc3RGcm9tQ2FtZXJhIDwgMjAuMCA/IDAuMDMgOiAwLjA2OwogICAgZm9yKGludCBpID0gMDsgaSA8IDM7IGkrKykgewogICAgICAgIGZsb2F0IGhyID0gc3RlcEJhc2UgKyBmbG9hdChpKSAqIDAuMTU7CiAgICAgICAgZmxvYXQgZGQgPSBzY2VuZURpc3RhbmNlKG5vciAqIGhyICsgcG9zKTsKICAgICAgICBvY2MgKz0gKGhyIC0gZGQpICogc2NhOwogICAgICAgIHNjYSAqPSAwLjc7CiAgICB9CiAgICBmbG9hdCBhb1Jlc3VsdCA9IGNsYW1wKDEuMCAtIG9jYyAqIDAuOCwgMC4wLCAxLjApOwogICAgcmV0dXJuIG1heChhb1Jlc3VsdCwgMC42KTsKfQp2ZWMzIGxpZ2h0aW5nKHZlYzMgc3AsIHZlYzMgc24sIHZlYzMgbHAsIHZlYzMgcmQpIHsKICAgIGZsb2F0IGRpc3RGcm9tQ2FtZXJhID0gbGVuZ3RoKHNwIC0gdUNhbWVyYVBvcyk7CiAgICB2ZWMzIGx2ID0gbHAgLSBzcDsKICAgIGZsb2F0IGxkaXN0ID0gbWF4KGxlbmd0aChsdiksIDAuMDAxKTsKICAgIHZlYzMgbGRpciA9IGx2IC8gbGRpc3Q7CiAgICBmbG9hdCBhdHRlID0gMS4wIC8gKDEuMCArIDAuMDAyICogbGRpc3QgKiBsZGlzdCk7CiAgICBmbG9hdCBkaWZmID0gbWF4KGRvdChsZGlyLCBzbiksIDAuMCk7CiAgICB2ZWMzIGlkID0gZmxvb3Ioc3AgLyAxMC4wKTsKICAgIHZlYzMgbG9jYWxQID0gbW9kKHNwLCAxMC4wKSAtIDUuMDsKICAgIGZsb2F0IHJhbmRWYWwgPSBybmQoaWQueHogKyB2ZWMyKGlkLnkgKiAxMC4wKSk7CiAgICBmbG9hdCBwaWVjZVR5cGUgPSBmcmFjdChyYW5kVmFsICogNi4wKTsKICAgIGJvb2wgaXNDbG9ja1NwaGVyZSA9IChwaWVjZVR5cGUgPCAwLjE1KTsKICAgIGZsb2F0IHNwZWNQb3dlciA9IGlzQ2xvY2tTcGhlcmUgPyAxMjAuMCA6IDEwLjA7CiAgICBmbG9hdCBzcGVjID0gcG93KG1heChkb3QocmVmbGVjdCgtbGRpciwgc24pLCAtcmQpLCAwLjApLCBzcGVjUG93ZXIpICogKGlzQ2xvY2tTcGhlcmUgPyAxLjAgOiAxLjApOwogICAgZmxvYXQgYW8gPSAxLjA7CiAgICBpZiAoZGlzdEZyb21DYW1lcmEgPCAxOC4wKSB7IC8vIDIwJ2RlbiAxOCdlCiAgICAgICAgYW8gPSBjYWxjdWxhdGVBTyhzcCwgc24pOwogICAgfQogICAgdmVjMiBncmlkQ29vcmQgPSBmbG9vcihzcC54eik7CiAgICBmbG9hdCBwYXR0ZXJuVmFsdWUgPSBtb2QoZ3JpZENvb3JkLnggKyBncmlkQ29vcmQueSwgMi4wKTsKICAgIHZlYzMgZGFya0dyYXkgPSB2ZWMzKDAuMDUpOwogICAgdmVjMyBsaWdodEdyYXkgPSB2ZWMzKDAuMzUpOwogICAgdmVjMyB0aWxlQ29sb3IgPSBtaXgoZGFya0dyYXksIGxpZ2h0R3JheSwgcGF0dGVyblZhbHVlKTsKICAgIGJvb2wgaXNDaGFpbkNlbGwgPSAocGllY2VUeXBlID49IDAuMTUgJiYgcGllY2VUeXBlIDwgMC4yNCk7CiAgICBmbG9hdCBjaGVzc1BpZWNlUGF0dGVybiA9IG1vZChmbG9vcihzcC54IC8gMTAuMCkgKyBmbG9vcihzcC56IC8gMTAuMCksIDIuMCk7CiAgICB2ZWMzIGRheUxpZ2h0UGllY2UgPSB2ZWMzKDAuMywgMC4yMiwgMC4wOCk7CiAgICB2ZWMzIGRheURhcmtQaWVjZSA9IHZlYzMoMC4wMiwgMC4wMiwgMC4wMSk7CiAgICB2ZWMzIG5pZ2h0TGlnaHRQaWVjZSA9IHZlYzMoMi4yLCAwLjY1LCAwLjE1KTsKICAgIHZlYzMgbmlnaHREYXJrUGllY2UgPSB2ZWMzKDAuMTUsIDAuNTUsIDEuOCk7CiAgICB2ZWMzIGxpZ2h0UGllY2VDb2xvciA9IGlzRGF5VGltZSA/IGRheUxpZ2h0UGllY2UgOiBuaWdodExpZ2h0UGllY2U7CiAgICB2ZWMzIGRhcmtQaWVjZUNvbG9yID0gaXNEYXlUaW1lID8gZGF5RGFya1BpZWNlIDogbmlnaHREYXJrUGllY2U7CiAgICB2ZWMzIHBpZWNlQ29sb3IgPSBtaXgoZGFya1BpZWNlQ29sb3IsIGxpZ2h0UGllY2VDb2xvciwgY2hlc3NQaWVjZVBhdHRlcm4pOwogICAgaWYgKGlzQ2xvY2tTcGhlcmUpIHsKICAgICAgICB2ZWMzIGNsb2NrUCA9IGxvY2FsUDsKICAgICAgICBjbG9ja1AueSAtPSAxLjI7CiAgICAgICAgZmxvYXQgZGlzdFRvQ2FtID0gbGVuZ3RoKHNwIC0gdUNhbWVyYVBvcyk7CiAgICAgICAgaWYgKGRpc3RUb0NhbSA8IDgwLjApIHsgLy8gU2FkZWNlIMOnb2sgdXpha3RhIGthcGF0CiAgICAgICAgICAgIGZsb2F0IHJvdFNwZWVkID0gKHJhbmRWYWwgKiAyLjAgLSAxLjApICogMS4wOwogICAgICAgICAgICBmbG9hdCBhbmdsZSA9IGlUaW1lICogcm90U3BlZWQ7CiAgICAgICAgICAgIGZsb2F0IGMgPSBjb3MoYW5nbGUpLCBzID0gc2luKGFuZ2xlKTsKICAgICAgICAgICAgY2xvY2tQLnh6ID0gdmVjMihjICogY2xvY2tQLnggLSBzICogY2xvY2tQLnosIHMgKiBjbG9ja1AueCArIGMgKiBjbG9ja1Aueik7CiAgICAgICAgfQogICAgICAgIGZsb2F0IHBhdHRlcm4gPSBnZXRDbG9ja1BhdHRlcm4oY2xvY2tQKTsKICAgICAgICBwaWVjZUNvbG9yID0gdmVjMygwLjA1KTsKICAgIH0KICAgIGlmIChpc0NoYWluQ2VsbCAmJiAhaXNDbG9ja1NwaGVyZSkgewogICAgICAgIHBpZWNlQ29sb3IgPSB2ZWMzKDAuMDUpOwogICAgfQogICAgZmxvYXQgaXNQaWVjZSA9IHN0ZXAoYWJzKGNoZXNzRmllbGQoc3ApKSwgMC41KTsKICAgIHZlYzMgYWxiZWRvID0gbWl4KHRpbGVDb2xvciwgcGllY2VDb2xvciwgaXNQaWVjZSk7CiAgICBib29sIGlzT3JhbmdlUGllY2UgPSAoaXNQaWVjZSA+IDAuNSAmJiBjaGVzc1BpZWNlUGF0dGVybiA+IDAuNSAmJiAhaXNDbG9ja1NwaGVyZSAmJiAhaXNDaGFpbkNlbGwpOwogICAgdmVjMyBzcGVjQ29sb3I7CiAgICBpZiAoaXNDaGFpbkNlbGwgfHwgaXNDbG9ja1NwaGVyZSkgewogICAgICAgIHNwZWNDb2xvciA9IHZlYzMoMC4zKTsKICAgIH0gZWxzZSBpZiAoaXNEYXlUaW1lKSB7CiAgICAgICAgc3BlY0NvbG9yID0gdmVjMygwLjksIDAuNSwgMC4yKTsKICAgIH0gZWxzZSB7CiAgICAgICAgaWYgKGlzT3JhbmdlUGllY2UpIHsKICAgICAgICAgICAgc3BlY0NvbG9yID0gdmVjMygyLjUsIDAuOCwgMC4zKTsKICAgICAgICB9IGVsc2UgewogICAgICAgICAgICBzcGVjQ29sb3IgPSB2ZWMzKDAuNCwgMS4yLCAyLjgpOwogICAgICAgIH0KICAgIH0KICAgIHZlYzMgY29sb3IgPSAoZGlmZiAqIGFsYmVkbyArIHNwZWMgKiBzcGVjQ29sb3IpICogYXR0ZTsKICAgIHJldHVybiBjb2xvciAqIGFvOwp9CnZlYzIgcGF0aChmbG9hdCB6KSB7CiAgICBmbG9hdCBzID0gc2luKHogLyAzNi4wKSAqIGNvcyh6IC8gMTguMCk7CiAgICByZXR1cm4gdmVjMihzICogMTYuMCwgMC4wKTsKfQp2b2lkIG1haW4oKSB7CiAgICB2ZWMyIGZyYWdDb29yZCA9IGdsX0ZyYWdDb29yZC54eTsKICAgIHZlYzIgdXYgPSAoZnJhZ0Nvb3JkIC0gaVJlc29sdXRpb24ueHkgKiAwLjUpIC8gaVJlc29sdXRpb24ueTsKICAgIHV2ID0gbm9ybWFsaXplKHV2KSAqIHRhbihhc2luKGxlbmd0aCh1dikgKiAxLjApKTsKICAgIHZlYzMgcm8gPSB1Q2FtZXJhUG9zOwogICAgdmVjMyBsayA9IHVDYW1lcmFUYXJnZXQ7CiAgICB2ZWMzIGxwID0gcm8gKyB2ZWMzKDAuMCwgNS4wLCAwLjApOwogICAgZmxvYXQgRk9WID0gMS41NzsKICAgIHZlYzMgZndkID0gbm9ybWFsaXplKGxrIC0gcm8pOwogICAgdmVjMyByZ3QgPSBub3JtYWxpemUodmVjMyhmd2QueiwgMC4wLCAtZndkLngpKTsKICAgIHZlYzMgdXAgPSBjcm9zcyhmd2QsIHJndCk7CiAgICB2ZWMzIHJkID0gbm9ybWFsaXplKGZ3ZCArIEZPViAqIHV2LnggKiByZ3QgKyBGT1YgKiB1di55ICogdXApOwogICAgZmxvYXQgdCA9IHRyYWNlKHJvLCByZCk7CiAgICBmbG9hdCBmYXIgPSBzbW9vdGhzdGVwKDAuMCwgMS4wLCB0IC8gMTIwLjApOwogICAgdmVjMyBzcCA9IHJvICsgcmQgKiB0OwogICAgdmVjMyBzbiA9IG5vcm1hbChzcCk7CiAgICB2ZWMzIGNvbG9yID0gbGlnaHRpbmcoc3AsIHNuLCBscCwgcmQpOwogICAgZmxvYXQgZGlzdEZyb21DYW1lcmEgPSBsZW5ndGgoc3AgLSBybyk7CiAgICB2ZWMzIHJlZlJheSA9IHJlZmxlY3QocmQsIHNuKTsKICAgIGZsb2F0IGJpYXMgPSBkaXN0RnJvbUNhbWVyYSA8IDIwLjAgPyAwLjAzIDogMC4wNjsKICAgIGZsb2F0IHQyID0gdHJhY2Uoc3AgKyBzbiAqIGJpYXMsIHJlZlJheSk7CiAgICB2ZWMzIHJzcCA9IHNwICsgc24gKiBiaWFzICsgcmVmUmF5ICogdDI7CiAgICB2ZWMzIHJzbiA9IG5vcm1hbChyc3ApOwogICAgdmVjMyByZWZDb2xvciA9IGxpZ2h0aW5nKHJzcCwgcnNuLCBscCwgcmVmUmF5KTsKICAgIGZsb2F0IHJlZlN0cmVuZ3RoOwogICAgaWYgKGRpc3RGcm9tQ2FtZXJhIDwgMjAuMCkgewogICAgICAgIHJlZlN0cmVuZ3RoID0gMC42OwogICAgfSBlbHNlIGlmIChkaXN0RnJvbUNhbWVyYSA8IDM1LjApIHsKICAgICAgICByZWZTdHJlbmd0aCA9IDAuNTsKICAgIH0gZWxzZSB7CiAgICAgICAgcmVmU3RyZW5ndGggPSAwLjQ7CiAgICB9CiAgICBjb2xvciArPSByZWZDb2xvciAqIHJlZlN0cmVuZ3RoOwogICAgdmVjMyB0b3BDb2xvciwgdXBwZXJDb2xvciwgbWlkQ29sb3IsIGhvdFBpbmtDb2xvciwgZGVlcFBpbmtDb2xvciwgZGFya1BpbmtDb2xvciwgdmVyeURhcmtDb2xvciwgbmVhckJsYWNrQ29sb3IsIGJsYWNrQ29sb3I7CiAgICBpZiAoaXNEYXlUaW1lKSB7CiAgICAgICAgdG9wQ29sb3IgPSB2ZWMzKDEuMCwgMC42LCAwLjI1KTsKICAgICAgICB1cHBlckNvbG9yID0gdmVjMygxLjIsIDAuNCwgMC4zKTsKICAgICAgICBtaWRDb2xvciA9IHZlYzMoMS4xLCAwLjQ1LCAwLjI4KTsKICAgICAgICBob3RQaW5rQ29sb3IgPSB2ZWMzKDAuOCwgMC4zNSwgMC4yNSk7CiAgICAgICAgZGVlcFBpbmtDb2xvciA9IHZlYzMoMC42LCAwLjI4LCAwLjIwKTsKICAgICAgICBkYXJrUGlua0NvbG9yID0gdmVjMygwLjQ1LCAwLjIyLCAwLjE1KTsKICAgICAgICB2ZXJ5RGFya0NvbG9yID0gdmVjMygwLjM1LCAwLjE4LCAwLjEyKTsKICAgICAgICBuZWFyQmxhY2tDb2xvciA9IHZlYzMoMC4yNSwgMC4xNSwgMC4xMCk7CiAgICAgICAgYmxhY2tDb2xvciA9IHZlYzMoMC4yMCwgMC4xMiwgMC4wOCk7CiAgICB9IGVsc2UgewogICAgICAgIHRvcENvbG9yID0gdmVjMygyLjIsIDAuOSwgMS40KTsKICAgICAgICB1cHBlckNvbG9yID0gdmVjMygyLjQsIDAuNywgMS4yKTsKICAgICAgICBtaWRDb2xvciA9IHZlYzMoMi41LCAwLjU1LCAxLjApOwogICAgICAgIGhvdFBpbmtDb2xvciA9IHZlYzMoMi4yLCAwLjQsIDAuODUpOwogICAgICAgIGRlZXBQaW5rQ29sb3IgPSB2ZWMzKDEuNiwgMC4yNSwgMC42KTsKICAgICAgICBkYXJrUGlua0NvbG9yID0gdmVjMygwLjgsIDAuMTIsIDAuMzUpOwogICAgICAgIHZlcnlEYXJrQ29sb3IgPSB2ZWMzKDAuMiwgMC4wMywgMC4xKTsKICAgICAgICBuZWFyQmxhY2tDb2xvciA9IHZlYzMoMC4wNSwgMC4wLCAwLjAyKTsKICAgICAgICBibGFja0NvbG9yID0gdmVjMygwLjAsIDAuMCwgMC4wKTsKICAgIH0KICAgIGZsb2F0IHkgPSByZC55OwogICAgdmVjMyBza3lHcmFkaWVudDsKICAgIGlmICh5ID4gMC43NSkgewogICAgICAgIGZsb2F0IGJsZW5kID0gc21vb3Roc3RlcCgwLjc1LCAxLjAsIHkpOwogICAgICAgIHNreUdyYWRpZW50ID0gbWl4KHVwcGVyQ29sb3IsIHRvcENvbG9yLCBibGVuZCk7CiAgICB9IGVsc2UgaWYgKHkgPiAwLjU1KSB7CiAgICAgICAgZmxvYXQgYmxlbmQgPSBzbW9vdGhzdGVwKDAuNTUsIDAuNzUsIHkpOwogICAgICAgIHNreUdyYWRpZW50ID0gbWl4KG1pZENvbG9yLCB1cHBlckNvbG9yLCBibGVuZCk7CiAgICB9IGVsc2UgaWYgKHkgPiAwLjQpIHsKICAgICAgICBmbG9hdCBibGVuZCA9IHNtb290aHN0ZXAoMC40LCAwLjU1LCB5KTsKICAgICAgICBza3lHcmFkaWVudCA9IG1peChob3RQaW5rQ29sb3IsIG1pZENvbG9yLCBibGVuZCk7CiAgICB9IGVsc2UgaWYgKHkgPiAwLjI1KSB7CiAgICAgICAgZmxvYXQgYmxlbmQgPSBzbW9vdGhzdGVwKDAuMjUsIDAuNCwgeSk7CiAgICAgICAgc2t5R3JhZGllbnQgPSBtaXgoZGVlcFBpbmtDb2xvciwgaG90UGlua0NvbG9yLCBibGVuZCk7CiAgICB9IGVsc2UgaWYgKHkgPiAwLjEpIHsKICAgICAgICBmbG9hdCBibGVuZCA9IHNtb290aHN0ZXAoMC4xLCAwLjI1LCB5KTsKICAgICAgICBza3lHcmFkaWVudCA9IG1peChkYXJrUGlua0NvbG9yLCBkZWVwUGlua0NvbG9yLCBibGVuZCk7CiAgICB9IGVsc2UgaWYgKHkgPiAtMC4wNSkgewogICAgICAgIGZsb2F0IGJsZW5kID0gc21vb3Roc3RlcCgtMC4wNSwgMC4xLCB5KTsKICAgICAgICBza3lHcmFkaWVudCA9IG1peCh2ZXJ5RGFya0NvbG9yLCBkYXJrUGlua0NvbG9yLCBibGVuZCk7CiAgICB9IGVsc2UgaWYgKHkgPiAtMC4yKSB7CiAgICAgICAgZmxvYXQgYmxlbmQgPSBzbW9vdGhzdGVwKC0wLjIsIC0wLjA1LCB5KTsKICAgICAgICBza3lHcmFkaWVudCA9IG1peChuZWFyQmxhY2tDb2xvciwgdmVyeURhcmtDb2xvciwgYmxlbmQpOwogICAgfSBlbHNlIHsKICAgICAgICBmbG9hdCBibGVuZCA9IHNtb290aHN0ZXAoLTAuNCwgLTAuMiwgeSk7CiAgICAgICAgc2t5R3JhZGllbnQgPSBtaXgoYmxhY2tDb2xvciwgbmVhckJsYWNrQ29sb3IsIGJsZW5kKTsKICAgIH0KICAgIHZlYzMgc2t5ID0gc2t5R3JhZGllbnQgKiAoaXNEYXlUaW1lID8gMy41IDogNC41KSAvIDguMDsKICAgIGNvbG9yID0gbWl4KGNvbG9yLCBza3ksIGZhcik7CiAgICBmbG9hdCB2aWcgPSAxLjAgLSBzbW9vdGhzdGVwKDEuMCwgMy41LCBsZW5ndGgodXYpKTsKICAgIGNvbG9yICo9IG1peCgwLjgsIDEuMCwgdmlnKTsKICAgIGdsX0ZyYWdDb2xvciA9IHZlYzQoY29sb3IsIDEuMCk7Cn0K");
         function compileShader(source, type) {
             const shader = gl.createShader(type);
             gl.shaderSource(shader, source);
@@ -1000,7 +489,7 @@ void main() {
         const uRabbitRotLocation = gl.getUniformLocation(program, 'uRabbitRot');
         const uCameraPosLocation = gl.getUniformLocation(program, 'uCameraPos');
         const uCameraTargetLocation = gl.getUniformLocation(program, 'uCameraTarget');
-        function checkIsDayTime() {
+        function _0xebfc() {
             const now = new Date();
             const hour = now.getHours();
             return hour >= 8 && hour < 20;
@@ -1045,6 +534,9 @@ void main() {
             preserveDrawingBuffer: false,
             failIfMajorPerformanceCaveat: false // GPU yoksa bile çalış!
         });
+        
+        // VR DESTEĞI AKTIF ET
+        renderer.xr.enabled = true;
         const isDesktop = !isMobile;
         let renderWidth = window.innerWidth;
         let renderHeight = window.innerHeight;
@@ -1203,7 +695,7 @@ void main() {
                 cinematicTime += deltaTime * 0.65;
                 const totalCycle = 300.0;
                 const t = cinematicTime % totalCycle;
-                function smoothBlend(progress, duration) {
+                function _0xc9da(progress, duration) {
                     const p = Math.min(progress / duration, 1.0);
                     return p * p * (3.0 - 2.0 * p);
                 }
@@ -1212,7 +704,7 @@ void main() {
                 const rabbitPathRadius = 28;
                 if (t < 50.0) {
                     const localT = t;
-                    const transBlend = smoothBlend(localT, 12.0);
+                    const transBlend = _0xc9da(localT, 12.0);
                     cameraAngle = cinematicTime * 0.12 + transBlend * Math.PI * 0.3;
                     cameraDist = 14 + transBlend * 6;
                     cameraHeight = 6 + transBlend * 4;
@@ -1220,7 +712,7 @@ void main() {
                     targetY = 2 + Math.sin(cinematicTime * 0.4) * 1.2;
                 } else if (t < 100.0) {
                     const localT = t - 50.0;
-                    const transBlend = smoothBlend(localT, 12.0);
+                    const transBlend = _0xc9da(localT, 12.0);
                     cameraAngle = Math.PI * 0.3 + cinematicTime * 0.08 + transBlend * Math.PI * 0.4;
                     cameraDist = 20 + transBlend * -5;
                     cameraHeight = 10 + Math.sin(cinematicTime * 0.3) * 3 + transBlend * -3;
@@ -1228,7 +720,7 @@ void main() {
                     targetY = 2.5 + Math.sin(cinematicTime * 0.5) * 1.5;
                 } else if (t < 150.0) {
                     const localT = t - 100.0;
-                    const transBlend = smoothBlend(localT, 12.0);
+                    const transBlend = _0xc9da(localT, 12.0);
                     cameraAngle = Math.PI * 0.7 + cinematicTime * 0.15 + transBlend * Math.PI * 0.5;
                     cameraDist = 15 + transBlend * -3;
                     cameraHeight = 7 + transBlend * -2;
@@ -1236,7 +728,7 @@ void main() {
                     targetY = 2.2 + Math.sin(cinematicTime * 0.6) * 1.0;
                 } else if (t < 200.0) {
                     const localT = t - 150.0;
-                    const transBlend = smoothBlend(localT, 12.0);
+                    const transBlend = _0xc9da(localT, 12.0);
                     cameraAngle = Math.PI * 1.2 + cinematicTime * 0.18 + transBlend * Math.PI * 0.3;
                     cameraDist = 12 + transBlend * 6;
                     cameraHeight = 5 + transBlend * 7;
@@ -1274,7 +766,7 @@ void main() {
                     rabbitSpeed = 0.32 + smoothRise * 0.08;
                 } else {
                     const returnT = t - 260.0;
-                    const returnBlend = smoothBlend(returnT, 12.0);
+                    const returnBlend = _0xc9da(returnT, 12.0);
                     targetY = 2 + Math.sin(cinematicTime * 0.5) * 0.8;
                     cameraAngle = cinematicTime * 0.1;
                     cameraDist = 18 - returnBlend * 4;
@@ -1305,7 +797,7 @@ void main() {
                 rabbit.rotation = rabbit.smoothRotation;
                 camera.position.x = rabbit.position.x + Math.cos(cameraAngle) * cameraDist;
                 camera.position.z = rabbit.position.z + Math.sin(cameraAngle) * cameraDist;
-                camera.position.y = rabbit.position.y + (checkIsDayTime() ? 2.5 : 8.0);
+                camera.position.y = rabbit.position.y + (_0xebfc() ? 2.5 : 8.0);
                 camera.lookAt(rabbit.position.x, rabbit.position.y + 1.5, rabbit.position.z);
                 const camToRabbit = Math.atan2(
                     rabbit.position.z - camera.position.z,
@@ -1414,7 +906,7 @@ void main() {
             }
             const camAngle = cameraYaw + Math.PI + manualCameraAngle;
             const camX = rabbit.position.x + Math.sin(camAngle) * cameraDistance;
-            const camY = rabbit.position.y + (checkIsDayTime() ? 2.5 : 8.0) + manualCameraPitch * 5;
+            const camY = rabbit.position.y + (_0xebfc() ? 2.5 : 8.0) + manualCameraPitch * 5;
             const camZ = rabbit.position.z + Math.cos(camAngle) * cameraDistance;
             camera.position.x += (camX - camera.position.x) * 5.0 * deltaTime;
             camera.position.y += (camY - camera.position.y) * 5.0 * deltaTime;
@@ -1427,7 +919,7 @@ void main() {
             }
             gl.uniform2f(iResolutionLocation, canvas.width, canvas.height);
             gl.uniform1f(iTimeLocation, time);
-            gl.uniform1i(isDayTimeLocation, checkIsDayTime() ? 1 : 0);
+            gl.uniform1i(isDayTimeLocation, _0xebfc() ? 1 : 0);
             gl.uniform3f(uRabbitPosLocation, rabbit.position.x, rabbit.position.y, rabbit.position.z);
             gl.uniform1f(uRabbitRotLocation, rabbit.rotation);
             gl.uniform3f(uCameraPosLocation, camera.position.x, camera.position.y, camera.position.z);
